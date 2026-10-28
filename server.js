@@ -1037,42 +1037,45 @@ Instructions:
           return;
         }
 
-        // 2. Groq Cloud (100% Free Tier - Llama 3.3 70B)
-        if (provider === 'groq' && apiKey) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000);
-          try {
-            const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-              },
-              body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                  { role: 'system', content: systemPrompt },
-                  { role: 'user', content: query }
-                ],
-                temperature: 0.3
-              }),
-              signal: controller.signal
-            });
-            clearTimeout(timeout);
-            if (groqRes.ok) {
-              const data = await groqRes.json();
-              const text = data.choices?.[0]?.message?.content;
-              if (text && text.trim().length > 10) {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                  text: text.trim(),
-                  provider: 'Groq Llama 3.3 70B'
-                }));
-                return;
+        // 2. Groq Cloud (100% Free Tier - Ultra-fast AI)
+        const effectiveGroqKey = (apiKey || process.env.GROQ_API_KEY || '').trim();
+        if (provider === 'groq' && effectiveGroqKey) {
+          const groqModels = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile'];
+          for (const modelName of groqModels) {
+            try {
+              const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${effectiveGroqKey}`
+                },
+                body: JSON.stringify({
+                  model: modelName,
+                  messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: query }
+                  ],
+                  temperature: 0.3,
+                  max_tokens: 350
+                }),
+                signal: AbortSignal.timeout(7000)
+              });
+
+              if (groqRes.ok) {
+                const data = await groqRes.json();
+                const text = data.choices?.[0]?.message?.content;
+                if (text && text.trim().length > 0) {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    text: text.trim(),
+                    provider: `Groq (${modelName})`
+                  }));
+                  return;
+                }
               }
+            } catch (e) {
+              // Try next model
             }
-          } catch (e) {
-            clearTimeout(timeout);
           }
         }
 
