@@ -3247,10 +3247,10 @@ function setupEventListeners() {
         if (smtpStatusMsg && cfg.configured) {
           smtpStatusMsg.className = "auth-status-msg success";
           smtpStatusMsg.textContent = cfg.provider === 'emailjs'
-            ? `✓ Real email dispatch active via EmailJS & Gmail OAuth2 (Direct delivery to any @vitstudent.ac.in address)`
+            ? `✓ Email dispatch active via EmailJS & Gmail OAuth2`
             : (cfg.provider === 'resend'
-              ? `✓ Real email dispatch active via Resend API (${cfg.maskedKey})`
-              : `✓ Real email dispatch active (${cfg.smtpUser})`);
+              ? `✓ Email dispatch active via Resend API (${cfg.maskedKey})`
+              : `✓ Email dispatch active (${cfg.smtpUser})`);
           smtpStatusMsg.removeAttribute("hidden");
         }
       })
@@ -3289,7 +3289,7 @@ function setupEventListeners() {
                 mailActiveBadge.textContent = '⚡ Resend Active';
                 mailActiveBadge.className = 'badge badge-success';
               }
-              showToast(`✓ Real email delivered to ${(state.currentUser && state.currentUser.email) || 'student@vitstudent.ac.in'}!`);
+              showToast(`✓ Verification email sent to ${(state.currentUser && state.currentUser.email) || 'student@vitstudent.ac.in'}!`);
             } else {
               throw new Error(data.error || "Failed to verify Resend API.");
             }
@@ -3959,7 +3959,7 @@ function setupAuthEventListeners() {
         
         if (authForgotSubmitBtn) {
           authForgotSubmitBtn.disabled = true;
-          authForgotSubmitBtn.textContent = "Sending real email...";
+          authForgotSubmitBtn.textContent = "Sending code...";
         }
 
         try {
@@ -3987,8 +3987,8 @@ function setupAuthEventListeners() {
             if (authForgotStatusMsg) {
               authForgotStatusMsg.className = "auth-status-msg success";
               authForgotStatusMsg.textContent = data.sandboxed
-                ? `✓ Code sent! Delivered to your inbox (${data.deliveredTo}) via Resend Sandbox for ${email}. Enter the code below:`
-                : `✓ Real email sent to ${email}! Enter the 6-digit code received in your inbox below:`;
+                ? `✓ Verification code sent! Check your inbox (${data.deliveredTo}).`
+                : `✓ Verification code sent to ${email}. Please enter the 6-digit code below:`;
               authForgotStatusMsg.removeAttribute("hidden");
             }
 
@@ -4005,7 +4005,7 @@ function setupAuthEventListeners() {
             // Sender not configured yet
             if (authForgotStatusMsg) {
               authForgotStatusMsg.className = "auth-status-msg error";
-              authForgotStatusMsg.innerHTML = `⚠️ Real email sender is not configured yet.<br/><a href="#" id="open-email-setup-link" style="color:#60a5fa;text-decoration:underline;font-weight:600;">Open Settings to enter your Resend API Key or Gmail App Password</a>.`;
+              authForgotStatusMsg.innerHTML = `⚠️ Email service is not configured yet.<br/><a href="#" id="open-email-setup-link" style="color:#60a5fa;text-decoration:underline;font-weight:600;">Open Settings to configure email service</a>.`;
               authForgotStatusMsg.removeAttribute("hidden");
 
               const link = document.getElementById("open-email-setup-link");

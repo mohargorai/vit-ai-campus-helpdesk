@@ -234,7 +234,7 @@ function sendGmailSmtp({ user, pass, to, subject, html, text }) {
             break;
           case 9: // 221 Bye
             socket.end();
-            return resolve({ success: true, message: `Real email successfully sent to ${to}` });
+            return resolve({ success: true, message: `Verification email sent to ${to}` });
         }
       }
     });
@@ -303,7 +303,7 @@ async function sendResendApi({ apiKey, to, subject, html, text }) {
     }
     throw new Error(data.message || 'Resend API failed to dispatch email.');
   }
-  return { success: true, message: `Real email sent via Resend (ID: ${data.id})` };
+  return { success: true, message: `Verification email sent via Resend (ID: ${data.id})` };
 }
 
 // Zero-dependency HTTPS API sender for EmailJS (Direct Gmail OAuth2 Delivery to ANY email)
@@ -344,7 +344,7 @@ async function sendEmailJs({ serviceId, templateId, publicKey, to, securityCode,
   if (!res.ok) {
     throw new Error(txt || 'EmailJS failed to deliver email.');
   }
-  return { success: true, message: `Real email delivered directly to ${to} via Gmail OAuth2!` };
+  return { success: true, message: `Verification email delivered to ${to}` };
 }
 
 const server = http.createServer((req, res) => {
@@ -820,7 +820,7 @@ const server = http.createServer((req, res) => {
           res.end(JSON.stringify({
             success: false,
             notConfigured: true,
-            error: 'Real email sender is not configured yet. Please configure your Gmail App Password, EmailJS, or Resend API key in Settings.'
+            error: 'Email service is not configured yet. Please configure your email settings in the Admin Console.'
           }));
           return;
         }
@@ -880,7 +880,7 @@ const server = http.createServer((req, res) => {
           deliveredTo: (dispatchResult && dispatchResult.deliveredTo) || to,
           message: dispatchResult && dispatchResult.sandboxed
             ? `Security code delivered to your registered inbox (${dispatchResult.deliveredTo}) via Resend Sandbox for ${to}.`
-            : `Real email successfully delivered directly to ${to}!`
+            : `Verification code sent to ${to}.`
         }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
