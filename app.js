@@ -3473,6 +3473,27 @@ function updateAccountDropdownUI() {
     dropdownRoleBadge.textContent = isAdmin ? "Admin Root" : (isStaff ? "Staff MB-102" : "Student");
     dropdownRoleBadge.className = isAdmin ? "badge badge-role admin" : (isStaff ? "badge badge-role staff" : "badge badge-role");
   }
+
+  const btnEditRoll = document.getElementById("btn-edit-roll");
+  if (btnEditRoll) {
+    if (isStaff || isAdmin) {
+      btnEditRoll.setAttribute("hidden", "true");
+    } else {
+      btnEditRoll.removeAttribute("hidden");
+      const hasRoll = user.regNo && user.regNo.trim().length > 0;
+      if (hasRoll) {
+        btnEditRoll.textContent = "🔒 Locked";
+        btnEditRoll.title = "Registration number is permanently linked to your student account (one-time only)";
+        btnEditRoll.style.opacity = "0.75";
+        btnEditRoll.style.cursor = "not-allowed";
+      } else {
+        btnEditRoll.textContent = "➕ Link Roll No";
+        btnEditRoll.title = "Set your Registration Number (one-time only)";
+        btnEditRoll.style.opacity = "1";
+        btnEditRoll.style.cursor = "pointer";
+      }
+    }
+  }
 }
 
 function setupAuthEventListeners() {
@@ -3737,7 +3758,7 @@ function setupAuthEventListeners() {
             }
             return;
           }
-          if (enteredRoll) {
+          if (enteredRoll && !user.regNo) {
             user.regNo = enteredRoll;
             saveAccount(user);
           }
@@ -3792,14 +3813,22 @@ function setupAuthEventListeners() {
     });
   }
 
-  // 4B. Edit Roll Number in Profile Dropdown
+  // 4B. Roll Number Management in Profile Dropdown (One-Time Only)
   const btnEditRoll = document.getElementById("btn-edit-roll");
   if (btnEditRoll) {
     btnEditRoll.addEventListener("click", () => {
       const cur = state.currentUser ? (state.currentUser.regNo || "") : "";
-      const roll = prompt("Enter your VIT Student Roll / Registration Number (e.g. 24BCE1001):", cur);
+      if (cur && cur.trim().length > 0) {
+        alert(`🔒 Registration Number Locked\n\nYour registration number (${cur}) is permanently linked to your student account and cannot be modified (one-time setting).\n\nIf you require an official administrative correction, please visit Desk MB-102 (Student Support Office).`);
+        return;
+      }
+
+      const roll = prompt("⚠️ IMPORTANT WARNING: Your Registration Number can only be linked ONCE.\n\nOnce entered and saved, it is permanently locked and CANNOT be changed or edited.\n\nEnter your official VIT Student Registration Number (e.g. 24BIT0462):");
       if (roll && roll.trim()) {
         const clean = roll.trim().toUpperCase();
+        const confirmed = confirm(`⚠️ FINAL CONFIRMATION\n\nAre you sure '${clean}' is your correct Registration Number?\n\nThis will be PERMANENTLY locked to your student account and cannot be changed later.`);
+        if (!confirmed) return;
+
         state.currentUser.regNo = clean;
         saveAccount(state.currentUser);
         localStorage.setItem("vit_current_user", JSON.stringify(state.currentUser));
@@ -3820,9 +3849,10 @@ function setupAuthEventListeners() {
         }).catch(err => console.warn("Backend roll sync offline:", err));
 
         updateUserProfileUI();
+        updateAccountDropdownUI();
         updateTicketBadges();
         renderTicketsView();
-        showToast(`Roll Number updated to ${clean}`);
+        showToast(`✓ Registration Number permanently linked: ${clean}`);
       }
     });
   }
