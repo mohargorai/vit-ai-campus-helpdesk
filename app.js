@@ -837,7 +837,7 @@ function getCurrentUser() {
       const found = accounts.find(a => a.email.toLowerCase() === parsed.email.toLowerCase());
       return found ? { ...found, ...parsed } : parsed;
     }
-  } catch (e) {}
+  } catch (e) { }
   return null;
 }
 
@@ -945,16 +945,427 @@ const savedInitialTickets = getSavedTickets();
 
 const state = {
   activeTab: "chat",
+  activeConversationId: null,
   currentUser: null,
   tickets: savedInitialTickets,
   ticketFilter: "active", // "active", "mysolved", "resolved"
   ticketSearchQuery: "",
   testResults: [],
   aiProvider: (localStorage.getItem("vit_ai_provider") === "groq" || localStorage.getItem("vit_ai_provider") === "local") ? localStorage.getItem("vit_ai_provider") : "gemini",
-  geminiApiKey: localStorage.getItem("vit_gemini_api_key") || localStorage.getItem("vit_ai_apikey") || "",
+  geminiApiKey: localStorage.getItem("vit_gemini_api_key") || "",
   groqApiKey: localStorage.getItem("vit_groq_api_key") || "",
   aiApiKey: localStorage.getItem("vit_ai_apikey") || ""
 };
+
+function getActiveAiApiKey() {
+  if (state.currentUser && state.currentUser.role !== "admin") {
+    return "";
+  }
+  if (state.aiProvider === "groq") {
+    return state.groqApiKey || (state.aiApiKey?.startsWith("gsk_") ? state.aiApiKey : "");
+  }
+  const key = state.geminiApiKey || (!state.aiApiKey?.startsWith("gsk_") ? state.aiApiKey : "");
+  return key;
+}
+
+// ==========================================================================
+// Conversation History Manager (Multi-Thread Persistent Storage)
+// ==========================================================================
+function getConversations() {
+  try {
+    const raw = localStorage.getItem("vit_conversations");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveConversations(list) {
+  try {
+    localStorage.setItem("vit_conversations", JSON.stringify(list));
+  } catch (_) { }
+}
+
+function recordMessage(msg) {
+  const list = getConversations();
+  let conv = list.find(c => c.id === state.activeConversationId);
+  if (!conv) {
+    const initialTitle = msg.role === "user"
+      ? (msg.text.slice(0, 36) + (msg.text.length > 36 ? "..." : ""))
+      : "Campus Inquiry";
+    conv = {
+      id: "conv_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+      title: initialTitle,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      pinned: false,
+      archived: false,
+      messages: []
+    };
+    list.unshift(conv);
+    state.activeConversationId = conv.id;
+  } else if ((conv.title === "New Conversation" || conv.title === "Campus Inquiry") && msg.role === "user") {
+    conv.title = msg.text.slice(0, 36) + (msg.text.length > 36 ? "..." : "");
+  }
+  conv.updatedAt = Date.now();
+  conv.messages.push(msg);
+  saveConversations(list);
+  renderChatHistoryList();
+}
+
+function loadConversation(id) {
+  const list = getConversations();
+  const conv = list.find(c => c.id === id);
+  if (!conv) return;
+
+  state.activeConversationId = id;
+  const chatMessagesEl = document.getElementById("chat-messages");
+  if (chatMessagesEl) chatMessagesEl.innerHTML = "";
+  const chatContainer = document.getElementById("chat-container") || document.querySelector(".chat-container");
+
+  if (!conv.messages || conv.messages.length === 0) {
+    renderInitialWelcomeMessage();
+  } else {
+    if (chatContainer) {
+      chatContainer.classList.remove("empty-chat");
+    }
+    conv.messages.forEach(m => {
+      if (m.role === 'user') {
+        renderSavedUserMessage(m);
+      } else if (m.role === 'assistant') {
+        appendAssistantResponse(m.queryResult, m.studentQuery, m.elapsed, true);
+      }
+    });
+  }
+
+  renderChatHistoryList();
+  if (window.innerWidth < 1024) {
+    closeHistorySidebar();
+  }
+}
+
+function renderSavedUserMessage(m) {
+  const row = document.createElement("div");
+  row.className = "message-row user";
+  row.innerHTML = `
+    <div class="avatar avatar-user" aria-label="${escapeAttr(m.senderLabel || 'Student Avatar')}">
+      <span style="font-size: 14px;">${m.avatarChar || '🎓'}</span>
+    </div>
+    <div class="message-bubble">
+      <div class="message-meta">
+        <span class="sender-name">${escapeHTML(m.senderLabel || 'Student (You)')}</span>
+        <span class="message-time">${m.time || ''}</span>
+      </div>
+      <div class="message-text">${escapeHTML(m.text)}</div>
+      <div class="message-actions-bar user-actions" role="toolbar" aria-label="Message actions">
+        <button class="msg-action-btn action-copy" type="button" aria-label="Copy question" title="Copy question">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          <span>Copy</span>
+        </button>
+        <button class="msg-action-btn action-edit" type="button" aria-label="Edit question" title="Edit question" data-query="${escapeAttr(m.text)}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          <span>Edit</span>
+        </button>
+      </div>
+    </div>
+  `;
+  const chatMessagesEl = document.getElementById("chat-messages");
+  if (chatMessagesEl) {
+    chatMessagesEl.appendChild(row);
+    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  }
+}
+
+function startNewChat() {
+  state.activeConversationId = null;
+  renderInitialWelcomeMessage();
+  const chatInputEl = document.getElementById("gemini-input-field") || document.getElementById("chat-input");
+  if (chatInputEl) {
+    chatInputEl.value = "";
+    updateSendButtonState();
+  }
+  renderChatHistoryList();
+  if (window.innerWidth < 1024) {
+    closeHistorySidebar();
+  }
+  showToast("Started a new chat");
+}
+
+function toggleHistorySidebar() {
+  const sidebar = document.getElementById("chat-history-sidebar");
+  if (!sidebar) return;
+  const isOpen = sidebar.classList.contains("open");
+  if (isOpen) {
+    closeHistorySidebar();
+  } else {
+    openHistorySidebar();
+  }
+}
+
+function openHistorySidebar() {
+  const sidebar = document.getElementById("chat-history-sidebar");
+  const backdrop = document.getElementById("history-backdrop");
+  if (!sidebar) return;
+  sidebar.classList.add("open");
+  sidebar.removeAttribute("aria-hidden");
+  if (backdrop) backdrop.classList.add("open");
+  if (window.innerWidth >= 1024) {
+    document.body.classList.add("sidebar-expanded");
+  }
+  localStorage.setItem("vit_sidebar_open", "true");
+  renderChatHistoryList();
+}
+
+function closeHistorySidebar() {
+  const sidebar = document.getElementById("chat-history-sidebar");
+  const backdrop = document.getElementById("history-backdrop");
+  if (!sidebar) return;
+  sidebar.classList.remove("open");
+  sidebar.setAttribute("aria-hidden", "true");
+  if (backdrop) backdrop.classList.remove("open");
+  document.body.classList.remove("sidebar-expanded");
+  localStorage.setItem("vit_sidebar_open", "false");
+  closeHistoryContextMenu();
+}
+
+let activeContextMenuChatId = null;
+
+function openHistoryContextMenu(targetBtnOrEvent, chatId) {
+  let targetEl = targetBtnOrEvent;
+  if (targetBtnOrEvent && targetBtnOrEvent.stopPropagation) {
+    targetBtnOrEvent.stopPropagation();
+    if (targetBtnOrEvent.target) {
+      targetEl = targetBtnOrEvent.target.closest(".history-item-menu-btn") || targetBtnOrEvent.target;
+    }
+  }
+  activeContextMenuChatId = chatId;
+  const menu = document.getElementById("history-context-menu");
+  if (!menu || !targetEl || !targetEl.getBoundingClientRect) return;
+
+  const conv = getConversations().find(c => c.id === chatId);
+  if (!conv) return;
+
+  const ctxPinLabel = document.getElementById("ctx-pin-label");
+  const ctxArchiveLabel = document.getElementById("ctx-archive-label");
+  if (ctxPinLabel) ctxPinLabel.textContent = conv.pinned ? "Unpin chat" : "Pin chat";
+  if (ctxArchiveLabel) ctxArchiveLabel.textContent = conv.archived ? "Unarchive chat" : "Archive chat";
+
+  // Keep 3-dot button visible while menu is open
+  document.querySelectorAll(".history-item.menu-open").forEach(el => el.classList.remove("menu-open"));
+  const parentItem = targetEl.closest ? targetEl.closest(".history-item") : document.querySelector(`.history-item[data-id="${chatId}"]`);
+  if (parentItem) parentItem.classList.add("menu-open");
+
+  const rect = targetEl.getBoundingClientRect();
+  const menuHeight = 205;
+  let top = rect.bottom + 4;
+  if (top + menuHeight > window.innerHeight) {
+    top = Math.max(10, rect.top - menuHeight - 4);
+  }
+  const left = Math.max(10, Math.min(window.innerWidth - 190, rect.right - 180));
+
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+  menu.removeAttribute("hidden");
+}
+
+function closeHistoryContextMenu() {
+  const menu = document.getElementById("history-context-menu");
+  if (menu) menu.setAttribute("hidden", "true");
+  activeContextMenuChatId = null;
+  document.querySelectorAll(".history-item.menu-open").forEach(el => el.classList.remove("menu-open"));
+}
+
+function shareConversation(id) {
+  const conv = getConversations().find(c => c.id === id);
+  if (!conv || !conv.messages || conv.messages.length === 0) {
+    showToast("Nothing to share in this conversation yet.");
+    return;
+  }
+  let transcript = `--- VIT AI Campus Helpdesk ---\nConversation: ${conv.title}\nDate: ${new Date(conv.createdAt).toLocaleDateString()}\n\n`;
+  conv.messages.forEach(m => {
+    if (m.role === "user") {
+      transcript += `Student: ${m.text}\n\n`;
+    } else if (m.role === "assistant") {
+      const ans = m.queryResult?.generatedAnswer || m.queryResult?.answer || "";
+      transcript += `Helpdesk: ${ans.replace(/<[^>]*>/g, '')}\n\n`;
+    }
+  });
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(transcript)
+      .then(() => showToast("✓ Conversation copied to clipboard!"))
+      .catch(() => showToast("Copied to clipboard."));
+  } else {
+    showToast("Conversation ready to share.");
+  }
+}
+
+function togglePinConversation(id) {
+  const list = getConversations();
+  const conv = list.find(c => c.id === id);
+  if (!conv) return;
+  conv.pinned = !conv.pinned;
+  saveConversations(list);
+  renderChatHistoryList();
+  showToast(conv.pinned ? "✓ Chat pinned to top" : "Chat unpinned");
+}
+
+function renameConversation(id) {
+  const list = getConversations();
+  const conv = list.find(c => c.id === id);
+  if (!conv) return;
+
+  const itemEl = document.querySelector(`.history-item[data-id="${id}"]`);
+  if (!itemEl) return;
+  const titleEl = itemEl.querySelector(".history-item-title");
+  if (!titleEl) return;
+
+  if (itemEl.querySelector(".history-item-rename-input")) return;
+
+  const originalTitle = conv.title || "New Chat";
+  itemEl.classList.add("is-renaming");
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "history-item-rename-input";
+  input.value = originalTitle;
+  input.maxLength = 50;
+  input.setAttribute("aria-label", "Edit conversation title");
+
+  input.addEventListener("click", e => e.stopPropagation());
+  input.addEventListener("mousedown", e => e.stopPropagation());
+
+  let isCommitted = false;
+
+  const commitRename = () => {
+    if (isCommitted) return;
+    isCommitted = true;
+    const newTitle = input.value.trim();
+    if (newTitle && newTitle !== originalTitle) {
+      conv.title = newTitle.slice(0, 50);
+      saveConversations(list);
+      showToast("✓ Chat title updated");
+    }
+    renderChatHistoryList();
+  };
+
+  const cancelRename = () => {
+    if (isCommitted) return;
+    isCommitted = true;
+    renderChatHistoryList();
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelRename();
+    }
+  });
+
+  input.addEventListener("blur", () => {
+    commitRename();
+  });
+
+  titleEl.innerHTML = "";
+  titleEl.appendChild(input);
+  input.focus();
+  input.select();
+}
+
+function toggleArchiveConversation(id) {
+  const list = getConversations();
+  const conv = list.find(c => c.id === id);
+  if (!conv) return;
+  conv.archived = !conv.archived;
+  saveConversations(list);
+  renderChatHistoryList();
+  showToast(conv.archived ? "✓ Chat moved to archive" : "Chat restored from archive");
+}
+
+function deleteConversation(id) {
+  let list = getConversations();
+  list = list.filter(c => c.id !== id);
+  saveConversations(list);
+  if (state.activeConversationId === id) {
+    startNewChat();
+  } else {
+    renderChatHistoryList();
+  }
+  showToast("✓ Chat deleted");
+}
+
+function renderChatHistoryList() {
+  const container = document.getElementById("history-chat-list");
+  if (!container) return;
+
+  const searchInput = document.getElementById("history-search-input");
+  const query = (searchInput ? searchInput.value : "").trim().toLowerCase();
+
+  let list = getConversations();
+
+  if (query) {
+    list = list.filter(c => {
+      const matchTitle = (c.title || "").toLowerCase().includes(query);
+      const matchMsg = (c.messages || []).some(m => (m.text || "").toLowerCase().includes(query));
+      return matchTitle || matchMsg;
+    });
+  }
+
+  if (list.length === 0) {
+    container.innerHTML = `
+      <div class="history-empty-state">
+        <span class="history-empty-icon">💬</span>
+        <p>${query ? "No matching chats" : "No chat history yet"}</p>
+        <span class="history-empty-sub">${query ? "Try a different search term." : "Your campus inquiries will be automatically preserved here."}</span>
+      </div>
+    `;
+    return;
+  }
+
+  const pinned = list.filter(c => c.pinned && !c.archived);
+  const recent = list.filter(c => !c.pinned && !c.archived);
+  const archived = list.filter(c => c.archived);
+
+  function renderItem(c) {
+    const isActive = c.id === state.activeConversationId;
+    const pinSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+    const chatSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+    const icon = c.pinned ? pinSvg : chatSvg;
+
+    return `
+      <div class="history-item ${isActive ? 'active' : ''}" data-id="${c.id}" title="${escapeAttr(c.title)}">
+        <span class="history-item-icon">${icon}</span>
+        <span class="history-item-title">${escapeHTML(c.title)}</span>
+        <button type="button" class="history-item-menu-btn" data-id="${c.id}" aria-label="Chat options" title="Options">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg>
+        </button>
+      </div>
+    `;
+  }
+
+  let html = "";
+  if (pinned.length > 0) {
+    html += `<div class="history-group-label">Pinned</div>`;
+    pinned.forEach(c => { html += renderItem(c); });
+  }
+
+  if (recent.length > 0) {
+    html += `<div class="history-group-label">${pinned.length > 0 ? "Recent Chats" : "Chats"}</div>`;
+    recent.forEach(c => { html += renderItem(c); });
+  }
+
+  if (archived.length > 0) {
+    html += `<div class="history-group-label">Archived</div>`;
+    archived.forEach(c => { html += renderItem(c); });
+  }
+
+  container.innerHTML = html;
+}
 
 // Student Privacy Filter: returns only tickets that the logged-in user has permission to see
 function getVisibleTickets() {
@@ -994,7 +1405,6 @@ const geminiStartHeading = document.getElementById("gemini-start-heading");
 const addActionBtn = document.getElementById("add-action-btn");
 const quickActionMenu = document.getElementById("quick-action-menu");
 const chipsList = document.getElementById("chips-list");
-const resetSessionBtn = document.getElementById("reset-session-btn");
 
 let isMicListening = false;
 
@@ -1017,12 +1427,6 @@ function updateSendButtonState() {
   }
 }
 
-const aiModelBtn = document.getElementById("ai-model-btn");
-const activeModelLabel = document.getElementById("active-model-label");
-const aiModelModal = document.getElementById("ai-model-modal");
-const closeAiModalBtn = document.getElementById("close-ai-modal-btn");
-const cancelAiModalBtn = document.getElementById("cancel-ai-modal-btn");
-const aiModelForm = document.getElementById("ai-model-form");
 const selectAiProvider = document.getElementById("select-ai-provider");
 const geminiApiKeyInput = document.getElementById("gemini-api-key") || document.getElementById("ai-api-key");
 const groqApiKeyInput = document.getElementById("groq-api-key");
@@ -1069,21 +1473,11 @@ const cancelReplyBtn = document.getElementById("cancel-reply-btn");
 const templateBtns = document.querySelectorAll(".template-btn");
 
 const liveToast = document.getElementById("live-toast");
-const toastBadge = document.getElementById("toast-badge");
 const toastMessage = document.getElementById("toast-message");
-const toastActionBtn = document.getElementById("toast-action-btn");
 
 let activeReplyTicketId = null;
 
 function updateActiveModelBadge() {
-  if (activeModelLabel) {
-    const labels = {
-      gemini: "Google Gemini Flash",
-      groq: "Groq Cloud AI",
-      local: "Local Campus RAG"
-    };
-    activeModelLabel.textContent = labels[state.aiProvider] || "Google Gemini Flash";
-  }
   if (geminiModelText) {
     const shortNames = {
       gemini: "Gemini",
@@ -1152,7 +1546,7 @@ function initApp() {
     if (rawTick && (rawTick.includes("VIT-2026-9140") || rawTick.includes("VIT-2026-9139") || rawTick.includes("VIT-2026-9138"))) {
       localStorage.removeItem(TICKETS_STORAGE_KEY);
     }
-  } catch (e) {}
+  } catch (e) { }
 
   document.body.dataset.activeTab = "chat";
   state.currentUser = getCurrentUser();
@@ -1331,6 +1725,14 @@ function appendUserMessage(text) {
   `;
   chatMessages.appendChild(row);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  recordMessage({
+    role: "user",
+    text,
+    time: timeStr,
+    senderLabel,
+    avatarChar
+  });
 }
 
 // Dynamic Generative RAG Synthesizer (100% Free, zero cost, contextual)
@@ -1349,7 +1751,7 @@ function formatMarkdownText(text) {
     .join("");
 }
 
-function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = null) {
+function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = null, isPlayback = false) {
   const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const row = document.createElement("div");
   row.className = "message-row assistant";
@@ -1547,6 +1949,16 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
 
   chatMessages.appendChild(row);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  if (!isPlayback) {
+    recordMessage({
+      role: "assistant",
+      queryResult,
+      studentQuery,
+      elapsed: elapsedSeconds,
+      time: timeStr
+    });
+  }
 }
 
 function appendTypingIndicator() {
@@ -1664,7 +2076,7 @@ async function handleUserSubmission(queryText) {
             context: "",
             sourceDoc: "VIT Student Support Office Directory",
             provider: state.aiProvider,
-            apiKey: state.aiProvider === "groq" ? (state.groqApiKey || state.aiApiKey) : (state.geminiApiKey || state.aiApiKey)
+            apiKey: getActiveAiApiKey()
           })
         });
         if (response.ok) {
@@ -1702,7 +2114,7 @@ async function handleUserSubmission(queryText) {
           context: result.match.answer,
           sourceDoc: result.match.sourceDoc,
           provider: state.aiProvider,
-          apiKey: state.aiProvider === "groq" ? (state.groqApiKey || state.aiApiKey) : (state.geminiApiKey || state.aiApiKey)
+          apiKey: getActiveAiApiKey()
         })
       });
 
@@ -1717,9 +2129,8 @@ async function handleUserSubmission(queryText) {
             answer: aiData.text,
             aiModelName: "Google Gemini (Setup)"
           }, trimmed, elapsed);
-          const settingsWheelBtn = document.getElementById("settings-wheel-btn");
-          if (settingsWheelBtn) {
-            settingsWheelBtn.click();
+          if (typeof openSettingsSidebar === "function") {
+            openSettingsSidebar();
           }
           return;
         }
@@ -2028,11 +2439,11 @@ function renderTicketsView() {
     const q = state.ticketSearchQuery;
     currentList = currentList.filter(t => {
       return (t.query && t.query.toLowerCase().includes(q)) ||
-             (t.id && t.id.toLowerCase().includes(q)) ||
-             (t.studentName && t.studentName.toLowerCase().includes(q)) ||
-             (t.studentRegNo && t.studentRegNo.toLowerCase().includes(q)) ||
-             (t.reply && t.reply.toLowerCase().includes(q)) ||
-             (t.resolvedBy && t.resolvedBy.toLowerCase().includes(q));
+        (t.id && t.id.toLowerCase().includes(q)) ||
+        (t.studentName && t.studentName.toLowerCase().includes(q)) ||
+        (t.studentRegNo && t.studentRegNo.toLowerCase().includes(q)) ||
+        (t.reply && t.reply.toLowerCase().includes(q)) ||
+        (t.resolvedBy && t.resolvedBy.toLowerCase().includes(q));
     });
   }
 
@@ -2291,6 +2702,17 @@ function appendStaffReplyMessage(ticketId, originalQuery, replyText) {
   `;
   chatMessages.appendChild(row);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  recordMessage({
+    role: "assistant",
+    queryResult: {
+      isConversational: true,
+      answer: `[Staff Reply - Ticket #${ticketId}] ${replyText}`,
+      aiModelName: "Support Desk MB-102 Officer"
+    },
+    studentQuery: originalQuery,
+    time: timeStr
+  });
 }
 
 window.openStaffModal = function (id, query, reason, rollNo, studentName) {
@@ -2470,7 +2892,7 @@ function setupEventListeners() {
     }
 
     if (activeSpeechRecognizer) {
-      try { activeSpeechRecognizer.stop(); } catch (e) {}
+      try { activeSpeechRecognizer.stop(); } catch (e) { }
       activeSpeechRecognizer = null;
     }
 
@@ -2488,15 +2910,15 @@ function setupEventListeners() {
     }
 
     if (audioAnalyser) {
-      try { audioAnalyser.disconnect(); } catch (e) {}
+      try { audioAnalyser.disconnect(); } catch (e) { }
       audioAnalyser = null;
     }
     if (audioContext) {
-      try { audioContext.close(); } catch (e) {}
+      try { audioContext.close(); } catch (e) { }
       audioContext = null;
     }
     if (mediaStream) {
-      try { mediaStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+      try { mediaStream.getTracks().forEach(t => t.stop()); } catch (e) { }
       mediaStream = null;
     }
 
@@ -2619,7 +3041,7 @@ function setupEventListeners() {
             ) || inputs.find(d => !/steam|virtual|stereo mix/i.test(d.label));
             if (realMic) targetId = realMic.deviceId;
           }
-        } catch (e) {}
+        } catch (e) { }
 
         let stream = null;
         if (targetId) {
@@ -2643,7 +3065,7 @@ function setupEventListeners() {
                   autoGainControl: true
                 }
               });
-            } catch (errIdeal) {}
+            } catch (errIdeal) { }
           }
         }
         if (!stream) {
@@ -2813,7 +3235,7 @@ function setupEventListeners() {
             } else {
               try {
                 recognition.start();
-              } catch (e) {}
+              } catch (e) { }
             }
           }
         };
@@ -2927,19 +3349,104 @@ function setupEventListeners() {
     setTimeout(updateChipNavState, 150);
   }
 
-  // Reset Session (instant reset + subtle in-place spin feedback, zero popups)
-  resetSessionBtn.addEventListener("click", () => {
-    const icon = resetSessionBtn.querySelector("svg");
-    if (icon) {
-      icon.style.transition = "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)";
-      icon.style.transform = "rotate(-180deg)";
-      setTimeout(() => {
-        icon.style.transition = "none";
-        icon.style.transform = "none";
-      }, 420);
+  // Chat History Sidebar & New Chat Controls
+  const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
+  const closeHistorySidebarBtn = document.getElementById("close-history-sidebar-btn");
+  const historyBackdrop = document.getElementById("history-backdrop");
+  const sidebarNewChatBtn = document.getElementById("sidebar-new-chat-btn");
+  const headerNewChatBtn = document.getElementById("header-new-chat-btn");
+  const historySearchInput = document.getElementById("history-search-input");
+  const historyChatList = document.getElementById("history-chat-list");
+  const historyContextMenuEl = document.getElementById("history-context-menu");
+
+  if (btnToggleSidebar) {
+    btnToggleSidebar.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleHistorySidebar();
+    });
+  }
+
+  if (closeHistorySidebarBtn) {
+    closeHistorySidebarBtn.addEventListener("click", () => closeHistorySidebar());
+  }
+
+  if (historyBackdrop) {
+    historyBackdrop.addEventListener("click", () => closeHistorySidebar());
+  }
+
+  if (sidebarNewChatBtn) {
+    sidebarNewChatBtn.addEventListener("click", () => startNewChat());
+  }
+
+  if (headerNewChatBtn) {
+    headerNewChatBtn.addEventListener("click", () => startNewChat());
+  }
+
+  if (historySearchInput) {
+    historySearchInput.addEventListener("input", () => renderChatHistoryList());
+  }
+
+  // Delegated clicks on chat history list
+  if (historyChatList) {
+    historyChatList.addEventListener("click", (e) => {
+      const menuBtn = e.target.closest(".history-item-menu-btn");
+      if (menuBtn) {
+        const id = menuBtn.getAttribute("data-id");
+        if (id) openHistoryContextMenu(menuBtn, id);
+        return;
+      }
+
+      const item = e.target.closest(".history-item");
+      if (item && !item.classList.contains("is-renaming")) {
+        const id = item.getAttribute("data-id");
+        if (id) loadConversation(id);
+      }
+    });
+  }
+
+  // Context Menu Actions
+  if (historyContextMenuEl) {
+    historyContextMenuEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".history-action-item");
+      if (!btn || !activeContextMenuChatId) return;
+      const action = btn.getAttribute("data-action");
+      const id = activeContextMenuChatId;
+      closeHistoryContextMenu();
+
+      if (action === "share") shareConversation(id);
+      else if (action === "pin") togglePinConversation(id);
+      else if (action === "rename") renameConversation(id);
+      else if (action === "archive") toggleArchiveConversation(id);
+      else if (action === "delete") deleteConversation(id);
+    });
+  }
+
+  // Dismiss context menu on click outside
+  document.addEventListener("click", (e) => {
+    if (historyContextMenuEl && !historyContextMenuEl.hasAttribute("hidden")) {
+      if (!historyContextMenuEl.contains(e.target) && !e.target.closest(".history-item-menu-btn")) {
+        closeHistoryContextMenu();
+      }
     }
-    renderInitialWelcomeMessage();
   });
+
+  // Dismiss sidebars on Escape key
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeHistoryContextMenu();
+      if (window.innerWidth < 1024) {
+        closeHistorySidebar();
+      }
+    }
+  });
+
+  // Restore sidebar preference: open by default on desktop unless explicitly closed
+  const isDesktop = window.innerWidth >= 1024;
+  const savedSidebarPref = localStorage.getItem("vit_sidebar_open");
+  if (isDesktop ? savedSidebarPref !== "false" : savedSidebarPref === "true") {
+    openHistorySidebar();
+  }
+  renderChatHistoryList();
 
   // Clear Resolved Tickets (in-place feedback, zero popups)
   if (clearTicketsBtn) {
@@ -3128,22 +3635,32 @@ function setupEventListeners() {
     settingsWheelBtn?.setAttribute("aria-expanded", "false");
   }
 
-  if (settingsWheelBtn && settingsSidebar) {
-    settingsWheelBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const isOpen = settingsSidebar.classList.contains("open");
-      if (isOpen) {
-        closeSettingsSidebar();
-      } else {
-        openSettingsSidebar();
-      }
-    });
+  window.openSettingsSidebar = openSettingsSidebar;
+  window.closeSettingsSidebar = closeSettingsSidebar;
+
+  if (settingsSidebar) {
+    if (settingsWheelBtn) {
+      settingsWheelBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = settingsSidebar.classList.contains("open");
+        if (isOpen) {
+          closeSettingsSidebar();
+        } else {
+          openSettingsSidebar();
+        }
+      });
+    }
 
     if (closeSettingsSidebarBtn) {
-      closeSettingsSidebarBtn.addEventListener("click", closeSettingsSidebar);
+      closeSettingsSidebarBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeSettingsSidebar();
+      });
     }
     if (settingsBackdrop) {
-      settingsBackdrop.addEventListener("click", closeSettingsSidebar);
+      settingsBackdrop.addEventListener("click", () => {
+        closeSettingsSidebar();
+      });
     }
 
     // Direct tab opening from settings tool items
@@ -3187,7 +3704,7 @@ function setupEventListeners() {
     if (saveSettingsPopoutBtn) {
       saveSettingsPopoutBtn.addEventListener("click", () => {
         const isAdmin = state.currentUser && state.currentUser.role === "admin";
-        
+
         // Model Selection: accessible to all students and staff
         if (selectAiProvider) {
           state.aiProvider = selectAiProvider.value;
@@ -3448,7 +3965,7 @@ function setupAuthEventListeners() {
           return;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // Account not yet registered or no roll number set
     authRegNoInput.readOnly = false;
@@ -3530,7 +4047,7 @@ function setupAuthEventListeners() {
       }
     }
     if (authFieldHint) {
-      authFieldHint.textContent = isStaff 
+      authFieldHint.textContent = isStaff
         ? "Use your official @vit.ac.in staff or officer account"
         : "Use your official @vitstudent.ac.in student account";
     }
@@ -3617,6 +4134,16 @@ function setupAuthEventListeners() {
   }
 
   // 1B. Inside dropdown actions: Inquiries, Switch account & Log out
+  const accountSettingsBtn = document.getElementById("account-settings-btn");
+  if (accountSettingsBtn) {
+    accountSettingsBtn.addEventListener("click", () => {
+      closeAccountDropdown();
+      if (typeof window.openSettingsSidebar === "function") {
+        window.openSettingsSidebar();
+      }
+    });
+  }
+
   const accountInquiriesBtn = document.getElementById("account-inquiries-btn");
   if (accountInquiriesBtn) {
     accountInquiriesBtn.addEventListener("click", () => {
@@ -3792,8 +4319,8 @@ function setupAuthEventListeners() {
             password: password,
             name: user.name || email
           });
-          navigator.credentials.store(cred).catch(() => {});
-        } catch (_) {}
+          navigator.credentials.store(cred).catch(() => { });
+        } catch (_) { }
       }
 
       if (authStatusMsg) {
@@ -3871,8 +4398,8 @@ function setupAuthEventListeners() {
   const authModalSubtitle = document.getElementById("auth-modal-subtitle");
   const authRoleSegmented = document.getElementById("auth-role-segmented");
 
-  let activeResetTargetEmail = (function() { try { return sessionStorage.getItem("vit_active_reset_email") || ""; } catch (_) { return ""; } })();
-  let activeResetSecurityCode = (function() { try { return sessionStorage.getItem("vit_active_reset_code") || ""; } catch (_) { return ""; } })();
+  let activeResetTargetEmail = (function () { try { return sessionStorage.getItem("vit_active_reset_email") || ""; } catch (_) { return ""; } })();
+  let activeResetSecurityCode = (function () { try { return sessionStorage.getItem("vit_active_reset_code") || ""; } catch (_) { return ""; } })();
 
   function resetPasswordToggles() {
     document.querySelectorAll(".password-toggle-btn").forEach(btn => {
@@ -3960,7 +4487,7 @@ function setupAuthEventListeners() {
   if (authForgotForm) {
     authForgotForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      
+
       const email = authForgotEmailInput ? authForgotEmailInput.value.trim().toLowerCase() : "";
       if (!email) return;
 
@@ -3984,8 +4511,8 @@ function setupAuthEventListeners() {
         try {
           sessionStorage.setItem("vit_active_reset_email", activeResetTargetEmail);
           sessionStorage.setItem("vit_active_reset_code", activeResetSecurityCode);
-        } catch (_) {}
-        
+        } catch (_) { }
+
         if (authForgotSubmitBtn) {
           authForgotSubmitBtn.disabled = true;
           authForgotSubmitBtn.textContent = "Sending code...";
@@ -4042,8 +4569,9 @@ function setupAuthEventListeners() {
                 link.addEventListener("click", (ev) => {
                   ev.preventDefault();
                   if (authModal) authModal.close();
-                  const settingsWheelBtn = document.getElementById("settings-wheel-btn");
-                  settingsWheelBtn?.click();
+                  if (typeof openSettingsSidebar === "function") {
+                    openSettingsSidebar();
+                  }
                 });
               }
             }
@@ -4095,7 +4623,7 @@ function setupAuthEventListeners() {
 
       // Check OTP: Allow either "VIT-123456" or just the 6 digits "123456"
       const cleanEntered = enteredOtp.replace(/[^0-9]/g, '');
-      const expectedCode = activeResetSecurityCode || (function() { try { return sessionStorage.getItem("vit_active_reset_code") || ""; } catch (_) { return ""; } })();
+      const expectedCode = activeResetSecurityCode || (function () { try { return sessionStorage.getItem("vit_active_reset_code") || ""; } catch (_) { return ""; } })();
       const cleanExpected = expectedCode.replace(/[^0-9]/g, '');
 
       if (!cleanEntered || cleanEntered !== cleanExpected) {
@@ -4146,7 +4674,7 @@ function setupAuthEventListeners() {
 
       try {
         sessionStorage.removeItem("vit_active_reset_code");
-      } catch (_) {}
+      } catch (_) { }
 
       if (authForgotStatusMsg) {
         authForgotStatusMsg.className = "auth-status-msg success";
@@ -4447,7 +4975,7 @@ function toggleSpeechMessage(btn) {
   activeSpeechBtn = btn;
 
   const selectedVoice = getBestSpeechVoice();
-  const voiceDisplayName = selectedVoice 
+  const voiceDisplayName = selectedVoice
     ? selectedVoice.name.replace(/\s*\(Online\s*\([^)]+\)\)|\s*Desktop|\s*\(Natural\)/gi, "").trim()
     : "Campus Assistant";
 

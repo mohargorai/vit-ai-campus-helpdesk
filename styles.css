@@ -489,12 +489,14 @@ body[data-active-tab="chat"] .view-back-to-chat-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 4px 8px;
   border-radius: 6px;
   transition: color 0.15s ease, background 0.15s ease;
+  position: relative;
+  z-index: 10;
 }
 
 .settings-close-x:hover {
@@ -3056,7 +3058,7 @@ body[data-active-tab="chat"] .view-back-to-chat-btn {
 
     /* Popouts & Menus: Native sheet alignment */
     .settings-popout-menu,
-    .user-account-dropdown {
+    .user-account-dropdown:not(.sidebar-account-dropdown) {
       position: fixed !important;
       top: 60px !important;
       left: 10px !important;
@@ -4080,4 +4082,471 @@ body[data-user-role="admin"] .student-only {
   border-color: rgba(255, 255, 255, 0.12);
   color: #cbd5e1;
   cursor: default;
+}
+
+/* ==========================================================================
+   Chat History Sidebar & Modern Industrial Chatbot Navigation
+   ========================================================================== */
+
+/* Graduation Cap Interactive Button */
+.brand-badge-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.brand-badge-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
+  transform: scale(1.05);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.3);
+}
+
+.brand-badge-btn:active {
+  transform: scale(0.96);
+}
+
+.header-new-chat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  transition: all 0.18s ease;
+}
+
+.header-new-chat-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* Chat History Sidebar Drawer */
+.chat-history-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(270px, 86vw);
+  background: #0f1013;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.5);
+}
+
+.chat-history-sidebar.open {
+  transform: translateX(0);
+}
+
+.history-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 115;
+}
+
+.history-backdrop.open {
+  display: block;
+}
+
+/* Desktop layout shifting when sidebar is expanded */
+@media (min-width: 1024px) {
+  body.sidebar-expanded .app-header {
+    margin-left: 270px;
+    width: calc(100% - 270px);
+  }
+  body.sidebar-expanded .main-layout {
+    margin-left: 270px;
+    width: calc(100% - 270px);
+  }
+  .app-header, .main-layout {
+    transition: margin-left 0.24s cubic-bezier(0.16, 1, 0.3, 1), width 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .history-backdrop.open {
+    display: none !important;
+  }
+}
+
+/* Sidebar Header */
+.history-sidebar-header {
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.history-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.history-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f1f5f9;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.history-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.history-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.btn-sidebar-new-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-sidebar-new-chat:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.history-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 5px 9px;
+  transition: border-color 0.15s ease;
+}
+
+.history-search-box:focus-within {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.history-search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.history-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 12px;
+  width: 100%;
+}
+
+.history-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Sidebar Body & Chat List */
+.history-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-sidebar-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.history-sidebar-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.history-group-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 10px 8px 4px;
+  margin-top: 4px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 12.8px;
+  transition: all 0.15s ease;
+  position: relative;
+  user-select: none;
+  border: 1px solid transparent;
+}
+
+.history-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.history-item.active {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.28);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.history-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.history-item.active .history-item-icon {
+  color: #60a5fa;
+}
+
+.history-item-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-item-menu-btn {
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.history-item:hover .history-item-menu-btn,
+.history-item.menu-open .history-item-menu-btn {
+  opacity: 1;
+}
+
+.history-item-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.history-item.is-renaming {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.history-item.is-renaming .history-item-menu-btn {
+  display: none !important;
+}
+
+.history-item-rename-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(59, 130, 246, 0.75);
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 12.5px;
+  padding: 2px 6px;
+  outline: none;
+  font-family: inherit;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  line-height: 1.3;
+}
+
+.history-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 36px 16px;
+  color: var(--text-muted);
+}
+
+.history-empty-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+  opacity: 0.6;
+}
+
+.history-empty-state p {
+  font-size: 13px;
+  color: #cbd5e1;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.history-empty-sub {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.35);
+  line-height: 1.4;
+}
+
+/* 3-Dot Context Menu Popover */
+.history-context-menu {
+  position: fixed;
+  z-index: 300;
+  background: #15161c;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  padding: 5px;
+  min-width: 175px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: slideDownFade 0.12s ease;
+}
+
+.history-action-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  border-radius: 7px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+}
+
+.history-action-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.history-action-item.item-danger {
+  color: #fca5a5;
+}
+
+.history-action-item.item-danger:hover {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 3px 0;
+}
+
+/* Sidebar Footer & Upward Account Menu */
+.history-sidebar-footer {
+  padding: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0b0c0f;
+  position: relative;
+}
+
+.sidebar-profile-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.sidebar-profile-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.user-profile-text-wrap {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.user-profile-text-wrap .user-display-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.8px;
+  font-weight: 500;
+  color: #f1f5f9;
+}
+
+.sidebar-account-dropdown {
+  position: absolute !important;
+  bottom: calc(100% + 8px) !important;
+  top: auto !important;
+  left: 8px !important;
+  right: 8px !important;
+  width: auto !important;
+  max-width: none !important;
+  animation: slideUpFade 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -1077,10 +1077,14 @@ Instructions:
 2. STRICT SCOPE RESTRICTION: You are NOT a general knowledge search engine. If the student asks about external universities (like BITS Pilani, IITs, etc.), outside topics, stocks, or general trivia not covered in the VIT campus scope, do NOT answer it. State clearly: "I apologize, but as the VIT Student Support Helpdesk Assistant, I am only authorized to answer inquiries about the VIT Vellore campus. This query is out of scope and has been routed to human support staff."`;
 
         // 1. Google Gemini
-        const effectiveGeminiKey = (apiKey || process.env.GEMINI_API_KEY || '').trim();
+        const envGeminiKey = (process.env.GEMINI_API_KEY || '').trim();
+        const clientKey = (apiKey && !apiKey.startsWith('gsk_')) ? apiKey.trim() : '';
+        const candidateKeys = [];
+        if (clientKey) candidateKeys.push(clientKey);
+        if (envGeminiKey && !candidateKeys.includes(envGeminiKey)) candidateKeys.push(envGeminiKey);
 
         if (provider === 'gemini') {
-          if (!effectiveGeminiKey) {
+          if (candidateKeys.length === 0) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
               text: "⚠️ **Google Gemini** is ready to connect!\n\nTo activate it, please enter your free API key.\n- Get your key from [Google AI Studio](https://aistudio.google.com/app/apikey).\n\nOpen **Settings** and enter your API key to enable cloud generation.",
@@ -1091,51 +1095,54 @@ Instructions:
           }
 
           const geminiModels = [
-            'gemini-3.5-flash-lite',
             'gemini-3.5-flash',
-            'gemini-flash-lite-latest',
+            'gemini-3.5-flash-lite',
+            'gemini-flash-latest',
             'gemini-3.1-flash-lite',
             'gemini-3.7-flash',
             'gemini-3.8-flash'
           ];
           let geminiSuccess = false;
 
-          for (const modelName of geminiModels) {
-            try {
-              const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${effectiveGeminiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{
-                    parts: [{ text: `${systemPrompt}\n\nStudent Message: "${query}"` }]
-                  }],
-                  generationConfig: {
-                    temperature: 0.35,
-                    maxOutputTokens: 350
-                  }
-                }),
-                signal: AbortSignal.timeout(9000)
-              });
+          for (const keyToUse of candidateKeys) {
+            for (const modelName of geminiModels) {
+              try {
+                const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{
+                      parts: [{ text: `${systemPrompt}\n\nStudent Message: "${query}"` }]
+                    }],
+                    generationConfig: {
+                      temperature: 0.35,
+                      maxOutputTokens: 350
+                    }
+                  }),
+                  signal: AbortSignal.timeout(9000)
+                });
 
-              if (geminiRes.ok) {
-                const data = await geminiRes.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text && text.trim().length > 0) {
-                  res.writeHead(200, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({
-                    text: text.trim(),
-                    provider: `Google ${modelName}`
-                  }));
-                  geminiSuccess = true;
-                  break;
+                if (geminiRes.ok) {
+                  const data = await geminiRes.json();
+                  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                  if (text && text.trim().length > 0) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                      text: text.trim(),
+                      provider: `Google ${modelName}`
+                    }));
+                    geminiSuccess = true;
+                    break;
+                  }
+                } else {
+                  const errText = await geminiRes.text().catch(() => '');
+                  console.warn(`Gemini API error [${modelName} - status ${geminiRes.status}]:`, errText);
                 }
-              } else {
-                const errText = await geminiRes.text().catch(() => '');
-                console.warn(`Gemini API error [${modelName} - status ${geminiRes.status}]:`, errText);
+              } catch (err) {
+                console.warn(`Gemini API call failed for ${modelName}:`, err.message);
               }
-            } catch (err) {
-              console.warn(`Gemini API call failed for ${modelName}:`, err.message);
             }
+            if (geminiSuccess) break;
           }
 
           if (geminiSuccess) return;
@@ -1271,39 +1278,45 @@ Instructions:
           return;
         }
 
-        const effectiveGeminiKey = (apiKey || process.env.GEMINI_API_KEY || '').trim();
-        const geminiModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-lite-latest'];
+        const envGeminiKey = (process.env.GEMINI_API_KEY || '').trim();
+        const clientKey = (apiKey && !apiKey.startsWith('gsk_')) ? apiKey.trim() : '';
+        const candidateKeys = [];
+        if (clientKey) candidateKeys.push(clientKey);
+        if (envGeminiKey && !candidateKeys.includes(envGeminiKey)) candidateKeys.push(envGeminiKey);
+        const geminiModels = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
 
-        for (const modelName of geminiModels) {
-          try {
-            const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${effectiveGeminiKey}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { text: 'You are an accurate English speech-to-text transcriber for the VIT Student Support Helpdesk. Transcribe the spoken audio query into clear English text (e.g. "where is sjt 412", "what are computing lab timings", "hello", "weekend hostel leave"). Return ONLY the transcribed English text, nothing else. If the audio is complete silence or unintelligible noise, reply with an empty string.' },
-                    { inlineData: { mimeType: mimeType, data: audioBase64 } }
-                  ]
-                }],
-                generationConfig: {
-                  temperature: 0.1,
-                  maxOutputTokens: 120
-                }
-              }),
-              signal: AbortSignal.timeout(5000)
-            });
+        for (const keyToUse of candidateKeys) {
+          for (const modelName of geminiModels) {
+            try {
+              const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{
+                    parts: [
+                      { text: 'You are an accurate English speech-to-text transcriber for the VIT Student Support Helpdesk. Transcribe the spoken audio query into clear English text (e.g. "where is sjt 412", "what are computing lab timings", "hello", "weekend hostel leave"). Return ONLY the transcribed English text, nothing else. If the audio is complete silence or unintelligible noise, reply with an empty string.' },
+                      { inlineData: { mimeType: mimeType, data: audioBase64 } }
+                    ]
+                  }],
+                  generationConfig: {
+                    temperature: 0.1,
+                    maxOutputTokens: 120
+                  }
+                }),
+                signal: AbortSignal.timeout(5000)
+              });
 
-            if (geminiRes.ok) {
-              const data = await geminiRes.json();
-              const candidatePart = data.candidates?.[0]?.content?.parts?.[0];
-              let text = candidatePart?.audioTranscription?.text || candidatePart?.text || '';
-              text = text.trim().replace(/^["']|["']$/g, '');
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ text, provider: `Gemini Audio Transcribe (${modelName})` }));
-              return;
-            }
-          } catch (err) {}
+              if (geminiRes.ok) {
+                const data = await geminiRes.json();
+                const candidatePart = data.candidates?.[0]?.content?.parts?.[0];
+                let text = candidatePart?.audioTranscription?.text || candidatePart?.text || '';
+                text = text.trim().replace(/^["']|["']$/g, '');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ text, provider: `Gemini Audio Transcribe (${modelName})` }));
+                return;
+              }
+            } catch (err) {}
+          }
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });

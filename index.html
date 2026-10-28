@@ -25,12 +25,12 @@
           <span>Back to Chat</span>
         </button>
 
-        <div class="brand-badge" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button id="btn-toggle-sidebar" class="brand-badge brand-badge-btn" type="button" aria-label="Toggle chat history sidebar" title="Chat History (Toggle Sidebar)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
             <path d="M6 12v5c3 3 9 3 12 0v-5"/>
           </svg>
-        </div>
+        </button>
         <div>
           <div class="brand-meta">
             <span class="institution-tag">AI Innovate-a-thon • 5th Semester</span>
@@ -40,68 +40,143 @@
       </div>
 
       <div class="header-actions">
-        <button id="reset-session-btn" class="btn-ghost" type="button" aria-label="Reset chat session and reload data">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-          <span>Reset</span>
+        <button id="header-new-chat-btn" class="btn-ghost header-new-chat-btn" type="button" aria-label="Start new chat" title="Start new conversation">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>New Chat</span>
         </button>
+      </div>
+    </div>
+  </header>
 
-        <button id="settings-wheel-btn" class="btn-ghost settings-wheel-btn" type="button" aria-label="Settings and Campus Tools" title="Settings &amp; Campus Tools" aria-controls="settings-sidebar" aria-expanded="false">
-          <svg class="gear-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  <!-- Chat History Sidebar Backdrop Overlay -->
+  <div id="history-backdrop" class="history-backdrop" aria-hidden="true"></div>
+
+  <!-- Chat History Sidebar (Left Slide Drawer) -->
+  <aside id="chat-history-sidebar" class="chat-history-sidebar" aria-label="Chat History Sidebar" aria-hidden="true">
+    <div class="history-sidebar-header">
+      <div class="history-header-top">
+        <div class="history-brand">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
-          <span>Settings</span>
+          <span class="history-title">Chat History</span>
+        </div>
+        <button id="close-history-sidebar-btn" class="history-close-btn" type="button" aria-label="Close Chat History" title="Collapse sidebar">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
         </button>
+      </div>
 
-        <!-- User Account Menu Wrapper -->
-        <div class="user-menu-wrapper">
-          <button id="user-profile-btn" class="btn-ghost user-profile-btn" type="button" aria-label="Account Menu" title="Click to open Account Menu" aria-haspopup="true" aria-expanded="false">
-            <span class="user-role-avatar" id="user-avatar-icon">🔑</span>
+      <!-- New Chat Button inside Sidebar -->
+      <button id="sidebar-new-chat-btn" class="btn-sidebar-new-chat" type="button" title="Start a fresh conversation">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        <span>New Chat</span>
+      </button>
+
+      <!-- Search in History -->
+      <div class="history-search-box">
+        <svg class="history-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+        <input type="text" id="history-search-input" class="history-search-input" placeholder="Search chats..." autocomplete="off" />
+      </div>
+    </div>
+
+    <!-- Scrollable Chat List -->
+    <div class="history-sidebar-body" id="history-chat-list">
+      <!-- Chat history threads rendered dynamically -->
+    </div>
+
+    <!-- Sidebar Bottom Footer: User Account & Settings inside it -->
+    <div class="history-sidebar-footer">
+      <div class="user-menu-wrapper" style="width: 100%;">
+        <button id="user-profile-btn" class="btn-ghost user-profile-btn sidebar-profile-btn" type="button" aria-label="Account Menu" title="Click to open Account Menu" aria-haspopup="true" aria-expanded="false">
+          <span class="user-role-avatar" id="user-avatar-icon">🔑</span>
+          <div class="user-profile-text-wrap">
             <span class="user-display-name" id="user-display-name">Sign In</span>
             <span class="user-role-tag" id="user-role-tag" style="display: none;">Student</span>
-            <svg class="user-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left: 2px; opacity: 0.7; transition: transform 0.2s ease; display: none;">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
+          </div>
+          <svg class="user-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left: auto; opacity: 0.7; transition: transform 0.2s ease;">
+            <polyline points="18 15 12 9 6 15"/>
+          </svg>
+        </button>
 
-          <!-- Dropdown Account Popover Menu -->
-          <div id="user-account-dropdown" class="user-account-dropdown" hidden>
-            <div class="account-dropdown-card">
-              <div class="account-user-info">
-                <div class="account-avatar-large" id="dropdown-avatar">🎓</div>
-                <div class="account-user-details">
-                  <div class="account-user-name" id="dropdown-user-name">VITian Student</div>
-                  <div class="account-user-email" id="dropdown-user-email">student@vitstudent.ac.in</div>
-                  <div class="account-user-meta">
-                    <span class="badge" id="dropdown-reg-badge">24BCE1001</span>
-                    <button type="button" class="btn-edit-roll student-only" id="btn-edit-roll" title="Update your Roll Number">✏️ Edit Roll No</button>
-                    <span class="badge badge-role" id="dropdown-role-badge">Student</span>
-                  </div>
+        <!-- Dropdown Account Popover Menu -->
+        <div id="user-account-dropdown" class="user-account-dropdown sidebar-account-dropdown" hidden>
+          <div class="account-dropdown-card">
+            <div class="account-user-info">
+              <div class="account-avatar-large" id="dropdown-avatar">🎓</div>
+              <div class="account-user-details">
+                <div class="account-user-name" id="dropdown-user-name">VITian Student</div>
+                <div class="account-user-email" id="dropdown-user-email">student@vitstudent.ac.in</div>
+                <div class="account-user-meta">
+                  <span class="badge" id="dropdown-reg-badge">24BCE1001</span>
+                  <button type="button" class="btn-edit-roll student-only" id="btn-edit-roll" title="Update your Roll Number">✏️ Edit Roll No</button>
+                  <span class="badge badge-role" id="dropdown-role-badge">Student</span>
                 </div>
               </div>
+            </div>
 
-              <div class="account-dropdown-divider"></div>
+            <div class="account-dropdown-divider"></div>
 
-              <div class="account-dropdown-actions">
-                <button type="button" class="account-dropdown-item" id="account-inquiries-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  <span>My Escalated Queries</span>
-                  <span class="badge badge-warning" id="account-tickets-badge" style="margin-left: auto;">0</span>
-                </button>
+            <div class="account-dropdown-actions">
+              <button type="button" class="account-dropdown-item" id="account-settings-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                <span>Settings &amp; Campus Tools</span>
+              </button>
 
-                <button type="button" class="account-dropdown-item item-danger" id="account-logout-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                    <polyline points="16 17 21 12 16 7"/>
-                    <line x1="21" y1="12" x2="9" y2="12"/>
-                  </svg>
-                  <span>Log Out</span>
-                </button>
-              </div>
+              <button type="button" class="account-dropdown-item" id="account-inquiries-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>My Escalated Queries</span>
+                <span class="badge badge-warning" id="account-tickets-badge" style="margin-left: auto;">0</span>
+              </button>
+
+              <button type="button" class="account-dropdown-item item-danger" id="account-logout-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                <span>Log Out</span>
+              </button>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  </aside>
+
+  <!-- 3-Dot Floating Action Context Menu -->
+  <div id="history-context-menu" class="history-context-menu" hidden>
+    <button type="button" class="history-action-item" data-action="share">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>
+      <span>Share conversation</span>
+    </button>
+    <button type="button" class="history-action-item" data-action="pin">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+      <span id="ctx-pin-label">Pin</span>
+    </button>
+    <button type="button" class="history-action-item" data-action="rename">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      <span>Rename</span>
+    </button>
+    <button type="button" class="history-action-item" data-action="archive">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect width="22" height="5" x="1" y="3" rx="1"/><line x1="10" x2="14" y1="12" y2="12"/></svg>
+      <span id="ctx-archive-label">Archive</span>
+    </button>
+    <div class="context-menu-divider"></div>
+    <button type="button" class="history-action-item item-danger" data-action="delete">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+      <span>Delete</span>
+    </button>
+  </div>
     </div>
   </header>
 
