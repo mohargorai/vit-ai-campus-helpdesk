@@ -843,6 +843,7 @@ function getCurrentUser() {
 
 function logoutUser() {
   state.currentUser = null;
+  state.activeConversationId = null;
   localStorage.setItem("vit_current_user", "logged_out");
   const authEmailInput = document.getElementById("auth-email-input");
   const authPasswordInput = document.getElementById("auth-password-input");
@@ -861,11 +862,13 @@ function logoutUser() {
   updateUserProfileUI();
   updateTicketBadges();
   renderTicketsView();
+  renderChatHistoryList();
   renderInitialWelcomeMessage();
 }
 
 function setCurrentUser(user) {
   state.currentUser = user;
+  state.activeConversationId = null;
   if (user) {
     localStorage.setItem("vit_current_user", JSON.stringify(user));
   } else {
@@ -874,6 +877,7 @@ function setCurrentUser(user) {
   updateUserProfileUI();
   updateTicketBadges();
   renderTicketsView();
+  renderChatHistoryList();
   renderInitialWelcomeMessage();
   syncTicketsFromServer();
 }
@@ -969,11 +973,36 @@ function getActiveAiApiKey() {
 }
 
 // ==========================================================================
-// Conversation History Manager (Multi-Thread Persistent Storage)
+// Conversation History Manager (Multi-Thread Persistent Storage Per Account)
 // ==========================================================================
+function getConversationsStorageKey() {
+  const user = state.currentUser;
+  const userKey = (user && user.email) ? user.email.trim().toLowerCase() : "guest";
+  return `vit_conversations_${userKey}`;
+}
+
+function migrateLegacyConversations() {
+  try {
+    const legacyRaw = localStorage.getItem("vit_conversations");
+    if (!legacyRaw) return;
+    const list = JSON.parse(legacyRaw);
+    if (Array.isArray(list) && list.length > 0) {
+      // Default migration to the student account that originally initiated the chat
+      const targetUser = state.currentUser?.email?.toLowerCase() || "mohar.gorai2024@vitstudent.ac.in";
+      const targetKey = `vit_conversations_${targetUser}`;
+      if (!localStorage.getItem(targetKey)) {
+        localStorage.setItem(targetKey, JSON.stringify(list));
+      }
+    }
+    localStorage.removeItem("vit_conversations");
+  } catch (_) { }
+}
+
 function getConversations() {
   try {
-    const raw = localStorage.getItem("vit_conversations");
+    migrateLegacyConversations();
+    const key = getConversationsStorageKey();
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -984,7 +1013,8 @@ function getConversations() {
 
 function saveConversations(list) {
   try {
-    localStorage.setItem("vit_conversations", JSON.stringify(list));
+    const key = getConversationsStorageKey();
+    localStorage.setItem(key, JSON.stringify(list));
   } catch (_) { }
 }
 
@@ -998,6 +1028,7 @@ function recordMessage(msg) {
     conv = {
       id: "conv_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
       title: initialTitle,
+      ownerEmail: (state.currentUser && state.currentUser.email) ? state.currentUser.email.trim().toLowerCase() : "guest",
       createdAt: Date.now(),
       updatedAt: Date.now(),
       pinned: false,
