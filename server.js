@@ -962,7 +962,7 @@ Instructions:
             return;
           }
 
-          const geminiModels = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
+          const geminiModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-8b'];
           let geminiSuccess = false;
 
           for (const modelName of geminiModels) {
@@ -989,14 +989,17 @@ Instructions:
                   res.writeHead(200, { 'Content-Type': 'application/json' });
                   res.end(JSON.stringify({
                     text: text.trim(),
-                    provider: 'Google Gemini 1.5 Flash'
+                    provider: `Google ${modelName}`
                   }));
                   geminiSuccess = true;
                   break;
                 }
+              } else {
+                const errText = await geminiRes.text().catch(() => '');
+                console.warn(`Gemini API error [${modelName} - status ${geminiRes.status}]:`, errText);
               }
             } catch (err) {
-              // Try next model in list
+              console.warn(`Gemini API call failed for ${modelName}:`, err.message);
             }
           }
 
@@ -1121,7 +1124,7 @@ Instructions:
         }
 
         const effectiveGeminiKey = (apiKey || process.env.GEMINI_API_KEY || '').trim();
-        const geminiModels = ['gemini-3.5-transcribe', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
+        const geminiModels = ['gemini-1.5-flash', 'gemini-2.0-flash'];
 
         for (const modelName of geminiModels) {
           try {
