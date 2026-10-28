@@ -520,6 +520,31 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET /api/auth/lookup?email=... (Quick student roll lookup for login QoL autofill)
+  if (req.method === 'GET' && urlPath === '/api/auth/lookup') {
+    const email = (parsedUrl.searchParams.get('email') || '').trim().toLowerCase();
+    if (!email) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ found: false }));
+      return;
+    }
+    const accounts = getAccounts();
+    const user = accounts.find(a => a.email.toLowerCase() === email);
+    if (user && user.role === 'student') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify({
+        found: true,
+        name: user.name,
+        regNo: user.regNo || '',
+        hasRegNo: Boolean(user.regNo && user.regNo.trim().length > 0)
+      }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify({ found: false }));
+    return;
+  }
+
   // POST /api/auth/login (Unified sign-in with auto-registration for campus students)
   if (req.method === 'POST' && urlPath === '/api/auth/login') {
     let body = '';
@@ -556,7 +581,7 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ success: false, error: 'Incorrect password for this account.' }));
             return;
           }
-          if (enteredRoll) {
+          if (enteredRoll && (!user.regNo || user.regNo.trim().length === 0)) {
             user.regNo = enteredRoll;
             saveAccounts(accounts);
           }
@@ -614,6 +639,11 @@ const server = http.createServer((req, res) => {
         const accounts = getAccounts();
         const user = accounts.find(a => a.email.toLowerCase() === email);
         if (user) {
+          if (user.regNo && user.regNo.trim().length > 0) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: 'Registration number is permanently locked to this account and cannot be modified.' }));
+            return;
+          }
           user.regNo = regNo;
           saveAccounts(accounts);
         }

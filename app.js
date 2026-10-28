@@ -3468,7 +3468,7 @@ function updateAccountDropdownUI() {
   if (dropdownAvatar) dropdownAvatar.textContent = isAdmin ? "🛡️" : (isStaff ? "👨‍💼" : "🎓");
   if (dropdownUserName) dropdownUserName.textContent = user.name;
   if (dropdownUserEmail) dropdownUserEmail.textContent = user.email;
-  if (dropdownRegBadge) dropdownRegBadge.textContent = user.regNo || (isAdmin ? "ADM-ROOT" : (isStaff ? "EMP-MB102" : "24BCE1092"));
+  if (dropdownRegBadge) dropdownRegBadge.textContent = user.regNo || (isAdmin ? "ADM-ROOT" : (isStaff ? "EMP-MB102" : "Not Set"));
   if (dropdownRoleBadge) {
     dropdownRoleBadge.textContent = isAdmin ? "Admin Root" : (isStaff ? "Staff MB-102" : "Student");
     dropdownRoleBadge.className = isAdmin ? "badge badge-role admin" : (isStaff ? "badge badge-role staff" : "badge badge-role");
@@ -3480,10 +3480,20 @@ function updateAccountDropdownUI() {
       btnEditRoll.setAttribute("hidden", "true");
     } else {
       btnEditRoll.removeAttribute("hidden");
-      btnEditRoll.textContent = "✏️ Edit Roll No";
-      btnEditRoll.title = "Update your Registration Number";
-      btnEditRoll.style.opacity = "1";
-      btnEditRoll.style.cursor = "pointer";
+      const hasRoll = Boolean(user.regNo && user.regNo.trim().length > 0);
+      if (hasRoll) {
+        btnEditRoll.textContent = "🔒 Locked";
+        btnEditRoll.title = "Registration number is permanently locked to your student account (cannot be changed)";
+        btnEditRoll.className = "btn-edit-roll student-only is-locked";
+        btnEditRoll.style.cursor = "not-allowed";
+        btnEditRoll.style.opacity = "0.85";
+      } else {
+        btnEditRoll.textContent = "➕ Set Roll No";
+        btnEditRoll.title = "Set your Registration Number (one-time setup)";
+        btnEditRoll.className = "btn-edit-roll student-only";
+        btnEditRoll.style.cursor = "pointer";
+        btnEditRoll.style.opacity = "1";
+      }
     }
   }
 }
@@ -3522,12 +3532,89 @@ function setupAuthEventListeners() {
     userProfileBtn?.setAttribute("aria-expanded", "false");
   }
 
+  let autofillDebounceTimer = null;
+
+  async function checkAndAutofillRegistration(rawEmail) {
+    const authRegNoInput = document.getElementById("auth-regno-input");
+    const authRegNoHint = document.getElementById("auth-regno-hint");
+    if (!authRegNoInput) return;
+
+    if (activeAuthRole === "staff") {
+      authRegNoInput.readOnly = false;
+      authRegNoInput.classList.remove("is-locked");
+      return;
+    }
+
+    let email = (rawEmail || "").trim().toLowerCase();
+    if (!email) {
+      authRegNoInput.value = "";
+      authRegNoInput.readOnly = false;
+      authRegNoInput.classList.remove("is-locked");
+      if (authRegNoHint) {
+        authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Displayed on your support tickets and escalations (e.g. 24BIT0462)</span>';
+      }
+      return;
+    }
+
+    if (!email.includes("@")) {
+      email = `${email}@vitstudent.ac.in`;
+    }
+
+    // 1. Instant check from local accounts store
+    const localAccounts = getAccounts();
+    const localMatch = localAccounts.find(a => a.email && a.email.toLowerCase() === email);
+    if (localMatch && localMatch.regNo && localMatch.regNo.trim().length > 0 && !localMatch.regNo.startsWith("24BCE1170")) {
+      applyFoundRegistration(localMatch.regNo);
+    }
+
+    // 2. Query live server lookup endpoint for authoritative locked roll number
+    try {
+      const res = await fetch(`/api/auth/lookup?email=${encodeURIComponent(email)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.found && data.hasRegNo && data.regNo) {
+          applyFoundRegistration(data.regNo);
+          saveAccount({ email, name: data.name || '', regNo: data.regNo, role: 'student' });
+          return;
+        }
+      }
+    } catch (_) {}
+
+    if (localMatch && localMatch.regNo && localMatch.regNo.trim().length > 0 && !localMatch.regNo.startsWith("24BCE1170")) {
+      return;
+    }
+
+    // Account not yet registered or no roll number set
+    authRegNoInput.readOnly = false;
+    authRegNoInput.classList.remove("is-locked");
+    if (authRegNoHint) {
+      authRegNoHint.innerHTML = '<span style="color:#fbbf24; display:inline-flex; align-items:center; gap:4px;">⚠️ <strong>One-time only:</strong> Once entered and saved, your registration number cannot be changed.</span>';
+    }
+  }
+
+  function applyFoundRegistration(regNo) {
+    const authRegNoInput = document.getElementById("auth-regno-input");
+    const authRegNoHint = document.getElementById("auth-regno-hint");
+    if (!authRegNoInput) return;
+    authRegNoInput.value = regNo;
+    authRegNoInput.readOnly = true;
+    authRegNoInput.classList.add("is-locked");
+    if (authRegNoHint) {
+      authRegNoHint.innerHTML = `<span style="color:#4ade80; display:inline-flex; align-items:center; gap:4px; font-weight:500;">🔒 <strong>Registration ID linked:</strong> ${escapeHTML(regNo)} (Permanently locked)</span>`;
+    }
+  }
+
   function openAuthModal() {
     showLoginForm();
     if (authStatusMsg) authStatusMsg.setAttribute("hidden", "true");
     const isStaffUser = state.currentUser && state.currentUser.role === "staff";
     setAuthRoleView(isStaffUser ? "staff" : "student", false);
-    if (authEmailInput) authEmailInput.value = state.currentUser ? state.currentUser.email : "";
+    if (authEmailInput) {
+      authEmailInput.value = state.currentUser ? state.currentUser.email : "";
+      if (authEmailInput.value) {
+        checkAndAutofillRegistration(authEmailInput.value);
+      }
+    }
     if (authPasswordInput) authPasswordInput.value = "";
     if (authModal) authModal.showModal();
   }
@@ -3573,10 +3660,16 @@ function setupAuthEventListeners() {
     if (authRegNoInput) {
       authRegNoInput.placeholder = isStaff ? "e.g. EMP-MB102" : "e.g. 24BCE1001 or 24BIT1002";
     }
-    if (authRegNoHint) {
-      authRegNoHint.textContent = isStaff 
-        ? "Your official staff or faculty ID number"
-        : "Displayed on your support tickets and escalations";
+    if (isStaff) {
+      if (authRegNoInput) {
+        authRegNoInput.readOnly = false;
+        authRegNoInput.classList.remove("is-locked");
+      }
+      if (authRegNoHint) {
+        authRegNoHint.textContent = "Your official staff or faculty ID number";
+      }
+    } else {
+      checkAndAutofillRegistration(authEmailInput ? authEmailInput.value : "");
     }
   }
 
@@ -3595,6 +3688,18 @@ function setupAuthEventListeners() {
       } else if (val.includes("@vitstudent.ac.in")) {
         setAuthRoleView("student", false);
       }
+      clearTimeout(autofillDebounceTimer);
+      autofillDebounceTimer = setTimeout(() => {
+        checkAndAutofillRegistration(authEmailInput.value);
+      }, 250);
+    });
+
+    authEmailInput.addEventListener("blur", () => {
+      checkAndAutofillRegistration(authEmailInput.value);
+    });
+
+    authEmailInput.addEventListener("change", () => {
+      checkAndAutofillRegistration(authEmailInput.value);
     });
   }
 
@@ -3739,7 +3844,7 @@ function setupAuthEventListeners() {
         if (localAcc && localAcc.regNo && (!user.regNo || user.regNo.startsWith("24BCE1170"))) {
           user.regNo = localAcc.regNo;
         }
-        if (enteredRoll) {
+        if (enteredRoll && (!user.regNo || user.regNo.trim().length === 0)) {
           user.regNo = enteredRoll;
         }
         saveAccount(user);
@@ -3812,15 +3917,26 @@ function setupAuthEventListeners() {
     });
   }
 
-  // 4B. Roll Number Management in Profile Dropdown
+  // 4B. Roll Number Management in Profile Dropdown (Permanently Locked once set)
   const btnEditRoll = document.getElementById("btn-edit-roll");
   if (btnEditRoll) {
     btnEditRoll.addEventListener("click", () => {
       const cur = state.currentUser ? (state.currentUser.regNo || "") : "";
-      const roll = prompt("Enter your VIT Student Registration / Roll Number (e.g. 24BIT0462):", cur);
+      if (cur) {
+        alert(`🔒 Registration Number Locked\n\nYour registration number (${cur}) is permanently bound to your university student account.\n\nTo prevent identity misuse, registration numbers cannot be modified once set. For official corrections, please contact Desk MB-102 (Student Support Office).`);
+        return;
+      }
+
+      const warningText = "⚠️ ONE-TIME REGISTRATION SETUP:\n\nOnce set, your Registration / Roll Number CANNOT be modified or changed again.\n\nPlease ensure you enter your accurate official VIT registration number (e.g. 24BIT0462).";
+      alert(warningText);
+
+      const roll = prompt("Enter your VIT Student Registration / Roll Number (e.g. 24BIT0462):", "");
       if (roll !== null) {
         const clean = roll.trim().toUpperCase();
         if (!clean) return;
+
+        const confirmSet = confirm(`Confirm Registration Number:\n\n${clean}\n\n⚠️ This will be permanently locked to your account and cannot be altered afterwards. Are you sure this is correct?`);
+        if (!confirmSet) return;
 
         state.currentUser.regNo = clean;
         saveAccount(state.currentUser);
@@ -3845,7 +3961,7 @@ function setupAuthEventListeners() {
         updateAccountDropdownUI();
         updateTicketBadges();
         renderTicketsView();
-        showToast(`✓ Registration Number updated to ${clean}`);
+        showToast(`✓ Registration Number locked to ${clean}`);
       }
     });
   }
@@ -4131,7 +4247,7 @@ function setupAuthEventListeners() {
           role,
           name: isStaffUser ? `Dr. ${formattedName}` : formattedName,
           email,
-          regNo: role === "student" ? "24BCE" + Math.floor(1000 + Math.random() * 9000) : "EMP-MB102",
+          regNo: role === "student" ? "" : "EMP-MB102",
           password: newPwd,
           avatar: role === "student" ? "🎓" : "👨‍💼"
         };
