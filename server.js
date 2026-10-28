@@ -1107,28 +1107,56 @@ Instructions:
           for (const keyToUse of candidateKeys) {
             for (const modelName of geminiModels) {
               try {
-                const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
+                // First try standard system_instruction format with generous 1200 token limit so CoT thinking doesn't truncate the answer
+                let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
+                    system_instruction: {
+                      parts: [{ text: systemPrompt }]
+                    },
                     contents: [{
-                      parts: [{ text: `${systemPrompt}\n\nStudent Message: "${query}"` }]
+                      parts: [{ text: `Student Question: "${query}"` }]
                     }],
                     generationConfig: {
-                      temperature: 0.35,
-                      maxOutputTokens: 350
+                      temperature: 0.3,
+                      maxOutputTokens: 1200
                     }
                   }),
-                  signal: AbortSignal.timeout(9000)
+                  signal: AbortSignal.timeout(9500)
                 });
+
+                // If model doesn't support system_instruction (HTTP 400), retry with inline content
+                if (geminiRes.status === 400) {
+                  geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contents: [{
+                        parts: [{ text: `${systemPrompt}\n\nStudent Question: "${query}"` }]
+                      }],
+                      generationConfig: {
+                        temperature: 0.3,
+                        maxOutputTokens: 1200
+                      }
+                    }),
+                    signal: AbortSignal.timeout(9500)
+                  });
+                }
 
                 if (geminiRes.ok) {
                   const data = await geminiRes.json();
-                  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                  if (text && text.trim().length > 0) {
+                  const candidateParts = data.candidates?.[0]?.content?.parts || [];
+                  const textParts = candidateParts
+                    .filter(p => p.text && !p.thought)
+                    .map(p => p.text.trim())
+                    .filter(Boolean);
+                  const text = textParts.join('\n\n') || (candidateParts[candidateParts.length - 1]?.text || '').trim();
+
+                  if (text && text.length > 0) {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
-                      text: text.trim(),
+                      text: text,
                       provider: `Google ${modelName}`
                     }));
                     geminiSuccess = true;
