@@ -556,7 +556,7 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ success: false, error: 'Incorrect password for this account.' }));
             return;
           }
-          if (enteredRoll && !user.regNo) {
+          if (enteredRoll) {
             user.regNo = enteredRoll;
             saveAccounts(accounts);
           }
@@ -576,7 +576,7 @@ const server = http.createServer((req, res) => {
             role: 'student',
             name: formattedName,
             email,
-            regNo: enteredRoll || ('24BCE' + Math.floor(1000 + Math.random() * 9000)),
+            regNo: enteredRoll || '',
             password,
             avatar: '🎓'
           };
@@ -614,11 +614,6 @@ const server = http.createServer((req, res) => {
         const accounts = getAccounts();
         const user = accounts.find(a => a.email.toLowerCase() === email);
         if (user) {
-          if (user.regNo && user.regNo.trim().length > 0) {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, error: 'Registration number is permanently linked to this account and cannot be changed (one-time only).' }));
-            return;
-          }
           user.regNo = regNo;
           saveAccounts(accounts);
         }
