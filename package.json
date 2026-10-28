@@ -1,0 +1,22 @@
+{
+  "name": "vit-ai-campus-helpdesk",
+  "version": "1.0.0",
+  "description": "Production AI-Powered Campus Helpdesk Assistant for VIT Students & Support Office",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "vit",
+    "helpdesk",
+    "campus",
+    "ai",
+    "gemini"
+  ],
+  "author": "VIT Campus Student Support",
+  "license": "UNLICENSED"
+}

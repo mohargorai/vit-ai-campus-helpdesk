@@ -1,0 +1,11 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp.*
+data/*.tmp.*
+data/accounts.json
+data/tickets.json
+.env
+.env.local
+mail_config.json

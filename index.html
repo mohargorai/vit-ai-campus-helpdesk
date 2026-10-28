@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>VIT AI Campus Helpdesk Assistant | Student Support Office</title>
+  <meta name="description" content="AI-powered campus helpdesk assistant for VIT students answering FAQs on classroom locations, lab timings, event registration, and procedures with verified citations and staff escalation.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+  <link rel="alternate icon" href="favicon.ico?v=2">
+  <link rel="apple-touch-icon" href="favicon.png?v=2">
+  <link rel="stylesheet" href="styles.css?v=65">
+</head>
+<body data-active-tab="chat">
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header" role="banner">
+    <div class="header-container">
+      <div class="brand-group">
+        <button id="nav-chat-btn" class="nav-tab view-back-to-chat-btn" data-tab="chat" aria-selected="true" role="tab" type="button" title="Return to Chat Assistant">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          <span>Back to Chat</span>
+        </button>
+
+        <div class="brand-badge" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-meta">
+            <span class="institution-tag">AI Innovate-a-thon • 5th Semester</span>
+          </div>
+          <h1 class="brand-title">AI Campus Helpdesk Assistant</h1>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="reset-session-btn" class="btn-ghost" type="button" aria-label="Reset chat session and reload data">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          <span>Reset</span>
+        </button>
+
+        <button id="settings-wheel-btn" class="btn-ghost settings-wheel-btn" type="button" aria-label="Settings and Campus Tools" title="Settings &amp; Campus Tools" aria-controls="settings-sidebar" aria-expanded="false">
+          <svg class="gear-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>Settings</span>
+        </button>
+
+        <!-- User Account Menu Wrapper -->
+        <div class="user-menu-wrapper">
+          <button id="user-profile-btn" class="btn-ghost user-profile-btn" type="button" aria-label="Account Menu" title="Click to open Account Menu" aria-haspopup="true" aria-expanded="false">
+            <span class="user-role-avatar" id="user-avatar-icon">🔑</span>
+            <span class="user-display-name" id="user-display-name">Sign In</span>
+            <span class="user-role-tag" id="user-role-tag" style="display: none;">Student</span>
+            <svg class="user-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left: 2px; opacity: 0.7; transition: transform 0.2s ease; display: none;">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <!-- Dropdown Account Popover Menu -->
+          <div id="user-account-dropdown" class="user-account-dropdown" hidden>
+            <div class="account-dropdown-card">
+              <div class="account-user-info">
+                <div class="account-avatar-large" id="dropdown-avatar">🎓</div>
+                <div class="account-user-details">
+                  <div class="account-user-name" id="dropdown-user-name">VITian Student</div>
+                  <div class="account-user-email" id="dropdown-user-email">student@vitstudent.ac.in</div>
+                  <div class="account-user-meta">
+                    <span class="badge" id="dropdown-reg-badge">24BCE1001</span>
+                    <button type="button" class="btn-edit-roll student-only" id="btn-edit-roll" title="Update your Roll Number">✏️ Edit Roll No</button>
+                    <span class="badge badge-role" id="dropdown-role-badge">Student</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="account-dropdown-divider"></div>
+
+              <div class="account-dropdown-actions">
+                <button type="button" class="account-dropdown-item" id="account-inquiries-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <span>My Escalated Queries</span>
+                  <span class="badge badge-warning" id="account-tickets-badge" style="margin-left: auto;">0</span>
+                </button>
+
+                <button type="button" class="account-dropdown-item" id="account-switch-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <span>Switch Account / Sign In</span>
+                </button>
+
+                <button type="button" class="account-dropdown-item item-danger" id="account-logout-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                  <span>Log Out</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Settings Sidebar Backdrop Overlay -->
+  <div id="settings-backdrop" class="settings-backdrop" aria-hidden="true"></div>
+
+  <!-- Settings Sidebar Drawer (Right Slide-out Drawer) -->
+  <aside id="settings-sidebar" class="settings-sidebar" aria-label="Settings and Campus Tools" aria-hidden="true">
+    <div class="settings-sidebar-header">
+      <div class="settings-sidebar-title">
+        <svg class="gear-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Settings &amp; Campus Tools</span>
+      </div>
+      <button type="button" id="close-settings-sidebar-btn" class="settings-close-x" aria-label="Close Settings Sidebar">&times;</button>
+    </div>
+
+    <div class="settings-sidebar-body">
+      <!-- Section 1: Audio Speech (TTS Voice Selection) -->
+      <div class="settings-section">
+        <div class="settings-section-head">
+          <span class="settings-section-label">🎙️ Audio Speech &amp; Voice</span>
+          <button id="test-tts-voice-btn" class="btn-ghost test-voice-pill-btn" type="button" title="Test active voice pronunciation">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <span>Test Voice</span>
+          </button>
+        </div>
+        <div class="settings-field">
+          <select id="select-tts-voice" class="settings-select" aria-label="Audio Speech Voice">
+            <option value="auto">🌟 Auto (Natural Neural / Studio Voice)</option>
+          </select>
+          <span class="settings-help-text">Speech voice used when reading assistant answers aloud via the Listen button.</span>
+        </div>
+        <div class="settings-field" style="margin-top: 10px;">
+          <label class="settings-mini-label" for="select-mic-lang">Microphone Dictation Language:</label>
+          <select id="select-mic-lang" class="settings-select" aria-label="Microphone Dictation Language">
+            <option value="en-IN" selected>🇬🇧 English (India &amp; Campus) [Recommended]</option>
+            <option value="en-US">🇺🇸 English (United States)</option>
+            <option value="en-GB">🇬🇧 English (United Kingdom)</option>
+          </select>
+          <span class="settings-help-text">English speech recognition model used by the capsule mic to decode your queries.</span>
+        </div>
+        <div class="settings-field" style="margin-top: 10px;">
+          <label class="settings-mini-label" for="select-mic-device">Active Microphone Device:</label>
+          <select id="select-mic-device" class="settings-select" aria-label="Microphone Hardware Device">
+            <option value="auto">🌟 Auto-Select Real Hardware Microphone</option>
+          </select>
+          <span class="settings-help-text">Pick your physical mic (e.g. Intel/Realtek Array instead of Steam/Virtual).</span>
+        </div>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <!-- Section 2: Campus Dashboards (Knowledge Base, Benchmark, Escalation) -->
+      <div class="settings-section">
+        <div class="settings-section-head">
+          <span class="settings-section-label">🏛️ Campus Views &amp; Tools</span>
+        </div>
+        <div class="settings-tools-grid">
+          <button type="button" class="settings-tool-row" data-open-tab="kb" title="Open Knowledge Base Directory">
+            <div class="settings-tool-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10M6 10h10"/></svg>
+            </div>
+            <div class="settings-tool-text">
+              <span class="settings-tool-name">Knowledge Base</span>
+              <span class="settings-tool-sub">24 approved campus docs &amp; FAQs</span>
+            </div>
+            <span class="badge" id="kb-count-badge">24</span>
+          </button>
+
+          <button type="button" class="settings-tool-row admin-only" data-open-tab="tests" title="Open Test Benchmark Suite">
+            <div class="settings-tool-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+            <div class="settings-tool-text">
+              <span class="settings-tool-name">Test Benchmark (10)</span>
+              <span class="settings-tool-sub">Evaluation matrix &amp; accuracy (Admin only)</span>
+            </div>
+            <span class="badge badge-success" id="test-pass-badge">10/10 Pass</span>
+          </button>
+
+          <button type="button" class="settings-tool-row" data-open-tab="tickets" title="Open Support Escalation Desk">
+            <div class="settings-tool-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="settings-tool-text">
+              <span class="settings-tool-name">Support Escalation Desk</span>
+              <span class="settings-tool-sub">Inquiries &amp; Human support queue (MB-102)</span>
+            </div>
+            <span class="badge badge-warning" id="ticket-count-badge">0</span>
+          </button>
+
+          <button type="button" class="settings-tool-row staff-only" id="admin-switch-student-btn" title="Switch to Student View">
+            <div class="settings-tool-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            </div>
+            <div class="settings-tool-text">
+              <span class="settings-tool-name">Switch to Student View</span>
+              <span class="settings-tool-sub">Test helpdesk as student</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <!-- Section 3: AI Model Selection (Available to All) & API Key (Admin Only) -->
+      <div class="settings-section">
+        <div class="settings-section-head">
+          <span class="settings-section-label">⚡ AI Model Selection</span>
+        </div>
+        <div class="settings-field">
+          <label class="settings-mini-label" for="select-ai-provider">Active Generative Provider:</label>
+          <select id="select-ai-provider" class="settings-select">
+            <option value="gemini" selected>⚡ Google Gemini 1.5 Flash (Default)</option>
+            <option value="local">🛡️ Local Campus RAG (Offline)</option>
+          </select>
+        </div>
+        <!-- Admin-Only Gemini API Key Configuration (Hidden from Students & Staff) -->
+        <div class="settings-field admin-only" style="margin-top: 8px;">
+          <label class="settings-mini-label" for="ai-api-key">Gemini API Key (Admin Only):</label>
+          <input type="password" id="ai-api-key" class="settings-input" placeholder="Enter Gemini API key..." />
+        </div>
+      </div>
+
+      <div class="settings-divider admin-only"></div>
+
+      <!-- Section 4: Real Email Dispatch (Admin Only) -->
+      <div class="settings-section admin-only">
+        <div class="settings-section-head">
+          <span class="settings-section-label">📧 Real Email Dispatch (Admin Only)</span>
+          <span class="badge badge-success" id="mail-active-provider-badge">EmailJS / Gmail Active</span>
+        </div>
+        <div class="settings-field">
+          <span class="settings-help-text" style="color: #4ade80; display: block; margin-top: 4px;">✓ Real email dispatch active via EmailJS &amp; Gmail OAuth2. Direct delivery to any @vitstudent.ac.in and @vit.ac.in address.</span>
+        </div>
+        <div id="smtp-status-msg" class="auth-status-msg" hidden style="margin-top: 8px;"></div>
+        <button type="button" id="test-smtp-btn" class="btn-ghost" style="margin-top: 8px; font-size: 11.5px; padding: 6px 12px; width: 100%; justify-content: center;">
+          <span>Verify &amp; Send Test Email</span>
+        </button>
+      </div>
+
+      <!-- Project Team Members Card -->
+      <div style="padding: 12px 14px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 10px; margin-top: 8px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Team • AI Innovate-a-thon (5th Sem)</span>
+        </div>
+        <div style="font-size: 11.5px; line-height: 1.6; color: var(--text-secondary);">
+          <div><strong>Mohar Gorai</strong> <span style="color: var(--text-muted); font-size: 10px;">• Lead Developer</span></div>
+          <div><strong>Devkanti Sarkar</strong> <span style="color: var(--text-muted); font-size: 10px;">• Core Contributor</span></div>
+          <div><strong>Agrima Gupta</strong> <span style="color: var(--text-muted); font-size: 10px;">• Core Contributor</span></div>
+          <div><strong>Sahil Kumar Bhagat</strong> <span style="color: var(--text-muted); font-size: 10px;">• Core Contributor</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sticky Footer: Always-Visible Save Preferences Button -->
+    <div class="settings-sidebar-footer">
+      <button type="button" id="save-settings-popout-btn" class="btn-primary settings-save-btn">
+        <span>💾 Save Preferences</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content Layout -->
+  <main id="main-content" class="main-layout" role="main">
+
+    <!-- VIEW 1: CHAT ASSISTANT (Context Sidebar Open on Desktop by Default) -->
+    <section id="view-chat" class="view-panel active" aria-label="AI Helpdesk Chat Window">
+      <div class="chat-container empty-chat" id="chat-container">
+        <!-- Chat Stream (Visible during active conversation) -->
+        <div class="chat-stream" id="chat-messages" role="log" aria-live="polite" aria-atomic="false">
+          <!-- Messages will stream here dynamically -->
+        </div>
+
+        <!-- Hero Center Block (Visible in empty / landing state) -->
+        <div class="gemini-hero-center" id="gemini-hero-center">
+          <div class="hero-brand-badge" id="hero-brand-badge">
+            <span class="hero-sparkle" aria-hidden="true">✦</span>
+            <span id="hero-badge-text">VIT Campus AI Helpdesk • 5th Sem Innovate-a-thon</span>
+          </div>
+          <h1 class="gemini-start-heading" id="gemini-start-heading">Good evening, VITian</h1>
+          <p class="gemini-start-subtitle" id="gemini-start-subtitle">What campus information or guidance can I help you find today?</p>
+        </div>
+
+        <!-- Docked Input & Prompt Container -->
+        <div class="chat-bottom-dock" id="chat-bottom-dock">
+          <!-- Quick Prompt Suggestions Carousel -->
+          <div class="prompt-chips-bar" id="prompt-chips-bar" aria-label="Frequently asked questions suggestions">
+            <span class="chips-label">Try asking:</span>
+            <div class="chips-scroll-wrapper">
+              <button id="chips-scroll-left" class="chips-nav-btn chips-nav-left" type="button" aria-label="Scroll suggestions left" title="Scroll left" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <div class="chips-list" id="chips-list" role="region" aria-label="Quick questions carousel" tabindex="0">
+                <button class="chip-btn" type="button" data-query="Where is room SJT 412 located?">📍 Where is SJT 412?</button>
+                <button class="chip-btn" type="button" data-query="What is the minimum attendance requirement and the 9-Pointer exemption rule?">📋 9-Pointer attendance rule</button>
+                <button class="chip-btn" type="button" data-query="What are the computing lab timings on Saturday?">💻 Saturday lab timings</button>
+                <button class="chip-btn" type="button" data-query="How do I apply for weekend hostel night leave?">🏠 Weekend hostel leave</button>
+                <button class="chip-btn" type="button" data-query="What is the anti-ragging policy and how do I contact the emergency helpline?">🛡️ Anti-ragging helpline</button>
+                <button class="chip-btn" type="button" data-query="What are the CDC placement eligibility rules and dream company offer policies?">🎓 CDC Placements</button>
+                <button class="chip-btn" type="button" data-query="How does relative grading work and what is the pass mark?">⚖️ Relative grading</button>
+                <button class="chip-btn" type="button" data-query="Where is the campus Health Centre and what are emergency medical numbers?">🏥 Health Centre</button>
+                <button class="chip-btn" type="button" data-query="Where is the Maker Space FabLab located and what are the equipment rules?">💡 Maker Space FabLab</button>
+              </div>
+              <button id="chips-scroll-right" class="chips-nav-btn chips-nav-right" type="button" aria-label="Scroll suggestions right" title="Scroll right">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Message Input Form (Google Gemini Capsule Exact Match) -->
+          <form class="chat-form" id="chat-form" autocomplete="off">
+            <label for="chat-input" class="visually-hidden">Ask VIT Campus AI Helpdesk</label>
+            <div class="input-wrapper gemini-capsule-pill" id="input-capsule">
+              <!-- Left '+' Button -->
+              <button id="add-action-btn" class="gemini-icon-btn" type="button" aria-label="Campus shortcuts & actions" title="Campus shortcuts">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+
+              <!-- Text Input -->
+              <input
+                type="text"
+                id="chat-input"
+                class="gemini-input-field"
+                placeholder="Ask VIT Campus AI Helpdesk... (or speak with mic)"
+                name="query"
+                autocomplete="off"
+                spellcheck="false"
+                required />
+
+              <!-- Right Controls: Model Pill & Voice / Send Button -->
+              <div class="gemini-controls-right">
+                <button id="gemini-model-pill" class="gemini-model-pill" type="button" title="Select AI Model">
+                  <span id="gemini-model-text">Flash</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+
+                <!-- Live Voice Audio Meter Bars -->
+                <div id="mic-audio-meter" class="mic-audio-meter" title="Live voice volume" hidden>
+                  <span class="meter-bar bar-1"></span>
+                  <span class="meter-bar bar-2"></span>
+                  <span class="meter-bar bar-3"></span>
+                </div>
+
+                <!-- Mic Button -->
+                <button id="gemini-mic-btn" class="gemini-icon-btn gemini-mic-btn" type="button" aria-label="Voice input" title="Voice input">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="22"/>
+                  </svg>
+                </button>
+
+                <!-- Send Button -->
+                <button id="send-btn" class="gemini-send-btn" type="submit" aria-label="Send message" style="display: none;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="12" y1="19" x2="12" y2="5"/>
+                    <polyline points="5 12 12 5 19 12"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Quick Action Dropdown Popover (triggered by '+' button) -->
+              <div id="quick-action-menu" class="quick-action-menu" hidden>
+                <div class="quick-menu-header">Quick Campus Actions</div>
+                <button type="button" class="quick-menu-item" data-action="locate-classroom">
+                  <span class="menu-icon">📍</span>
+                  <div class="menu-text">
+                    <strong>Locate Classroom (SJT / TT / MB / PRP)</strong>
+                    <span>Inserts prompt to specify your room (e.g. SJT 201, TT 419)</span>
+                  </div>
+                </button>
+                <button type="button" class="quick-menu-item" data-query="What are the computing lab timings and 24/7 Maker Space FabLab access rules?">
+                  <span class="menu-icon">💻</span>
+                  <div class="menu-text">
+                    <strong>Computing Labs &amp; 24/7 FabLab Access</strong>
+                    <span>SJT/TT lab timings &amp; Maker Space 3D printer access rules</span>
+                  </div>
+                </button>
+                <button type="button" class="quick-menu-item" data-query="How do I register for Gravitas 2026 hackathons and get OD leave approved?">
+                  <span class="menu-icon">🎟️</span>
+                  <div class="menu-text">
+                    <strong>Gravitas 2026 &amp; Riviera Registration</strong>
+                    <span>Event registration portal and On-Duty (OD) approval steps</span>
+                  </div>
+                </button>
+                <button type="button" class="quick-menu-item" data-query="How do I apply for weekend hostel night leave and what are biometric curfew timings?">
+                  <span class="menu-icon">🏠</span>
+                  <div class="menu-text">
+                    <strong>Weekend Hostel Night Leave &amp; Curfew</strong>
+                    <span>VTOP application deadline and biometric gate cutoff</span>
+                  </div>
+                </button>
+                <button type="button" class="quick-menu-item" data-query="What is the anti-ragging policy and how do I contact the emergency helpline?">
+                  <span class="menu-icon">🛡️</span>
+                  <div class="menu-text">
+                    <strong>Emergency Helplines &amp; Health Centre</strong>
+                    <span>24/7 ambulance, security control &amp; anti-ragging numbers</span>
+                  </div>
+                </button>
+                <button type="button" class="quick-menu-item" data-action="open-tickets">
+                  <span class="menu-icon">👨‍💼</span>
+                  <div class="menu-text">
+                    <strong>Contact MB-102 Staff / View Tickets</strong>
+                    <span>Open escalation queue for direct Student Support Desk review</span>
+                  </div>
+                </button>
+              </div>
+
+              <!-- Gemini Model Selection Popover -->
+              <div id="gemini-model-menu" class="gemini-model-dropdown" hidden>
+                <div class="model-menu-header">Select AI Model</div>
+                <button type="button" class="model-menu-item active" data-model="gemini" data-label="Flash">
+                  <div class="model-item-info">
+                    <div class="model-item-title">
+                      <span class="model-icon">⚡</span>
+                      <strong>Google Gemini 1.5 Flash</strong>
+                      <span class="model-badge-rec">Default</span>
+                    </div>
+                    <span class="model-item-desc">Fast, grounded answers with official campus citations</span>
+                  </div>
+                  <span class="model-check" aria-hidden="true">✓</span>
+                </button>
+
+                <button type="button" class="model-menu-item" data-model="local" data-label="Local">
+                  <div class="model-item-info">
+                    <div class="model-item-title">
+                      <span class="model-icon">🛡️</span>
+                      <strong>Local Campus RAG</strong>
+                    </div>
+                    <span class="model-item-desc">Instant verified retrieval directly from local knowledge base</span>
+                  </div>
+                  <span class="model-check" aria-hidden="true">✓</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-footer-meta">
+              <span>Powered by Verified VIT Knowledge Base (Oct 2026)</span>
+              <span class="threshold-pill">Fallback Threshold: &lt;&nbsp;45% &bull; Auto-routes to Staff</span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- VIEW 2: KNOWLEDGE BASE EXPLORER -->
+    <section id="view-kb" class="view-panel" aria-label="Campus Knowledge Base Directory" hidden>
+      <div class="view-breadcrumb-row">
+        <button type="button" class="view-breadcrumb-btn" data-tab="chat" title="Return to Chat Assistant">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          <span>Back to Chat Assistant</span>
+        </button>
+      </div>
+      <div class="kb-header-strip">
+        <div>
+          <h2 class="view-title">Approved Campus Knowledge Base</h2>
+          <p class="view-subtitle">Official FAQ and document repository verified for 16 October 2026 campus operations.</p>
+        </div>
+        <div class="kb-controls">
+          <div class="search-input-wrapper">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <label for="kb-search-input" class="visually-hidden">Search Knowledge Base FAQs and Documents</label>
+            <input
+              type="search"
+              id="kb-search-input"
+              class="kb-search-input"
+              placeholder="Search by keywords, room codes, lab names, procedures…"
+              name="kb_search"
+              autocomplete="off"
+              spellcheck="false">
+          </div>
+          <div class="category-filters" role="group" aria-label="Filter by knowledge base category">
+            <button class="filter-chip active" data-category="all" type="button">All (<span id="cat-count-all">32</span>)</button>
+            <button class="filter-chip" data-category="classrooms" type="button">Classrooms (<span id="cat-count-classrooms">6</span>)</button>
+            <button class="filter-chip" data-category="labs" type="button">Labs (<span id="cat-count-labs">3</span>)</button>
+            <button class="filter-chip" data-category="events" type="button">Events &amp; Academics (<span id="cat-count-events">8</span>)</button>
+            <button class="filter-chip" data-category="facilities" type="button">Facilities (<span id="cat-count-facilities">8</span>)</button>
+            <button class="filter-chip" data-category="procedures" type="button">Procedures (<span id="cat-count-procedures">7</span>)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="kb-grid" id="kb-cards-grid">
+        <!-- Rendered via JavaScript -->
+      </div>
+    </section>
+
+    <!-- VIEW 3: TEST BENCHMARK EVALUATION TABLE (STAFF ONLY) -->
+    <section id="view-tests" class="view-panel staff-only" aria-label="Test Evaluation Benchmark Suite" hidden>
+      <div class="view-breadcrumb-row">
+        <button type="button" class="view-breadcrumb-btn" data-tab="chat" title="Return to Chat Assistant">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          <span>Back to Chat Assistant</span>
+        </button>
+      </div>
+      <div class="tests-header-strip">
+        <div>
+          <div class="test-suite-tag">Requirement Verification</div>
+          <h2 class="view-title">AI Helpdesk Test Suite &amp; Fallback Evaluation Table</h2>
+          <p class="view-subtitle">Demonstrates 10 test queries (including 2 ambiguous or out-of-scope questions) with verified answer correctness, exact citations, and staff fallback behavior.</p>
+        </div>
+        <div class="test-actions">
+          <button id="run-all-tests-btn" class="btn-primary" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Run All 10 Tests</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Metrics summary row -->
+      <div class="metrics-row">
+        <div class="metric-card">
+          <span class="metric-label">Total Test Queries</span>
+          <span class="metric-val" id="metric-total">10</span>
+          <span class="metric-note">Full scenario coverage</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Answer Correctness</span>
+          <span class="metric-val text-emerald" id="metric-pass">100%</span>
+          <span class="metric-note">8/8 Verified FAQs</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Fallback Routing Rate</span>
+          <span class="metric-val text-amber" id="metric-fallback">100%</span>
+          <span class="metric-note">2/2 Ambiguous/Out-of-Scope</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Avg Confidence Score</span>
+          <span class="metric-val" id="metric-avg-conf">89.4%</span>
+          <span class="metric-note">In-scope queries</span>
+        </div>
+      </div>
+
+      <!-- Test Table -->
+      <div class="table-container">
+        <table class="benchmark-table" aria-label="Test query evaluation benchmark table">
+          <thead>
+            <tr>
+              <th scope="col" style="width: 60px;">ID</th>
+              <th scope="col" style="width: 220px;">Test Query</th>
+              <th scope="col" style="width: 140px;">Category</th>
+              <th scope="col" style="width: 220px;">Expected Behavior</th>
+              <th scope="col">Actual AI Output</th>
+              <th scope="col" style="width: 110px;">Confidence</th>
+              <th scope="col" style="width: 180px;">Source Document</th>
+              <th scope="col" style="width: 90px;">Status</th>
+              <th scope="col" style="width: 110px;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="test-table-body">
+            <!-- Populated via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- VIEW 4: ESCALATION & INQUIRIES DESK (STUDENTS & STAFF) -->
+    <section id="view-tickets" class="view-panel" aria-label="Campus Escalation Desk Queue" hidden>
+      <div class="view-breadcrumb-row">
+        <button type="button" class="view-breadcrumb-btn" data-tab="chat" title="Return to Chat Assistant">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          <span>Back to Chat Assistant</span>
+        </button>
+      </div>
+      <div class="tickets-header-strip">
+        <div>
+          <span class="institution-tag">VIT Student Support Services</span>
+          <h2 class="view-title" id="tickets-view-heading">Support Escalation Desk</h2>
+          <p class="view-subtitle" id="tickets-view-sub">Queries with insufficient confidence or out-of-scope criteria automatically routed to student support officers.</p>
+        </div>
+        <button id="clear-tickets-btn" class="btn-clear-tickets staff-only" type="button" aria-label="Clear Resolved Tickets">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          <span>Clear Resolved Tickets</span>
+        </button>
+      </div>
+
+      <!-- Staff & Student Ticket Filter Toolbar -->
+      <div class="tickets-filter-toolbar" id="tickets-filter-toolbar">
+        <div class="tickets-tab-pills" role="tablist" aria-label="Ticket filter tabs">
+          <button type="button" class="ticket-filter-pill active" id="tab-tickets-active" data-filter="active">
+            <span id="tab-tickets-active-label">Active Inquiries</span>
+            <span class="badge" id="badge-active-tickets">0</span>
+          </button>
+          <button type="button" class="ticket-filter-pill staff-only" id="tab-tickets-mysolved" data-filter="mysolved">
+            <span>Solved by Me</span>
+            <span class="badge badge-success" id="badge-mysolved-tickets">0</span>
+          </button>
+          <button type="button" class="ticket-filter-pill" id="tab-tickets-resolved" data-filter="resolved">
+            <span id="tab-tickets-resolved-label">Resolved History</span>
+            <span class="badge" id="badge-resolved-tickets">0</span>
+          </button>
+        </div>
+
+        <div class="tickets-filter-search">
+          <div class="tickets-search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="tickets-search-input" placeholder="Search by Roll No, name, or query..." aria-label="Search tickets" />
+          </div>
+        </div>
+      </div>
+
+      <div class="tickets-grid" id="tickets-queue-container">
+        <!-- Rendered via JavaScript -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Staff Escalation Modal / Dialog -->
+  <dialog id="ticket-modal" class="ticket-dialog" aria-labelledby="modal-ticket-title">
+    <div class="dialog-card">
+      <div class="dialog-header">
+        <div class="brand-badge danger" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        </div>
+        <div>
+          <h3 id="modal-ticket-title" class="dialog-title">Query Routed to Staff Desk</h3>
+          <span class="dialog-subtitle" id="modal-ticket-id">Ticket #VIT-2026-9041</span>
+        </div>
+        <button id="close-modal-btn" class="close-btn" type="button" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="dialog-body">
+        <div class="dialog-field">
+          <label class="field-label">Student Information:</label>
+          <div class="field-value" id="modal-ticket-student-info">VITian Student &bull; <span style="font-family: var(--font-mono); color: #60a5fa;">Roll No: 24BCE1001</span></div>
+        </div>
+        <div class="dialog-field">
+          <label class="field-label">Student Inquiry:</label>
+          <div class="field-value" id="modal-ticket-query">&mdash;</div>
+        </div>
+        <div class="dialog-field">
+          <label class="field-label">Routing Reason:</label>
+          <div class="field-value badge-pill" id="modal-ticket-reason">Answer unavailable in approved knowledge base</div>
+        </div>
+        <div class="dialog-field">
+          <label class="field-label">Assigned Desk:</label>
+          <div class="field-value">VIT Student Support Office (Main Building, Room 102)</div>
+        </div>
+        <div class="dialog-field">
+          <label class="field-label">Estimated Response Time:</label>
+          <div class="field-value">Within 2 working hours &bull; SMS notification sent to registered student mobile</div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button id="modal-confirm-btn" class="btn-primary" type="button">
+          <span>View in Escalation Desk</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Staff Official Reply Composer Modal / Dialog -->
+  <dialog id="staff-reply-modal" class="ticket-dialog" aria-labelledby="modal-reply-title">
+    <div class="dialog-card">
+      <div class="dialog-header">
+        <div class="brand-badge" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 id="modal-reply-title" class="dialog-title">Respond to Student Inquiry</h3>
+          <span class="dialog-subtitle" id="reply-ticket-id">Ticket #VIT-2026-9140</span>
+        </div>
+        <button id="close-reply-modal-btn" class="close-btn" type="button" aria-label="Close dialog">&times;</button>
+      </div>
+      <form id="staff-reply-form" class="dialog-body">
+        <div class="dialog-field">
+          <label class="field-label">Student Inquiry:</label>
+          <div class="field-value" id="reply-student-query" style="font-style: italic;">&mdash;</div>
+        </div>
+        <div class="dialog-field">
+          <label class="field-label">Quick Response Templates:</label>
+          <div class="template-chips" role="group" aria-label="Quick response templates">
+            <button type="button" class="btn-ghost template-btn" data-template="Dear Student, regarding your inquiry, please visit Room MB-102 (Student Support Office) between 09:00 AM and 05:00 PM with your student ID for direct in-person clearance.">📍 In-Person MB-102</button>
+            <button type="button" class="btn-ghost template-btn" data-template="Dear Student, could you please specify the exact building (e.g. SJT, TT, or SMV Block) and lab name so we can assist you with precise timings?">❓ Ask Clarification</button>
+            <button type="button" class="btn-ghost template-btn" data-template="Dear Student, this service requires an official endorsement from your Faculty Proctor on VTOP under Student Services.">📝 Proctor Endorsement</button>
+          </div>
+        </div>
+        <div class="dialog-field">
+          <label for="staff-reply-text" class="field-label">Official Staff Response:</label>
+          <textarea id="staff-reply-text" class="chat-input" rows="3" style="background: var(--bg-app); border: 1px solid var(--border-default); border-radius: 6px; padding: 10px; width: 100%; color: var(--text-primary);" placeholder="Type official response from Student Support Office…" required></textarea>
+        </div>
+        <div class="dialog-field">
+          <span style="font-size: 11px; color: var(--text-muted);">
+            Responding Officer: <strong>Dr. K. Ramanathan, Student Welfare Officer (Desk MB-102)</strong>
+          </span>
+        </div>
+        <div class="dialog-footer" style="gap: 8px;">
+          <button id="cancel-reply-btn" class="btn-ghost" type="button">Cancel</button>
+          <button type="submit" class="btn-primary">Send Reply &amp; Resolve Ticket</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Minimalist College Authentication Dialog -->
+  <dialog id="auth-modal" class="ticket-dialog auth-dialog" aria-labelledby="auth-modal-title">
+    <div class="dialog-card auth-card">
+      <div class="dialog-header">
+        <div class="brand-badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        </div>
+        <div>
+          <h3 id="auth-modal-title" class="dialog-title">Campus Sign In</h3>
+          <span id="auth-modal-subtitle" class="dialog-subtitle">Authenticate with your official VIT email</span>
+        </div>
+        <button id="close-auth-modal-btn" class="close-btn" type="button" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <!-- Role Selector Toggle -->
+      <div id="auth-role-segmented" class="auth-role-segmented" role="tablist" aria-label="Sign-in role">
+        <button type="button" class="auth-role-tab active" id="auth-tab-student" role="tab" aria-selected="true" data-role="student">
+          <span>🎓</span>
+          <span>VITian Student</span>
+        </button>
+        <button type="button" class="auth-role-tab" id="auth-tab-staff" role="tab" aria-selected="false" data-role="staff">
+          <span>👨‍💼</span>
+          <span>Staff / Admin</span>
+        </button>
+      </div>
+
+      <!-- Clean Role-Adapted Sign In Form -->
+      <form id="auth-login-form" class="dialog-body auth-body" method="POST" action="/api/auth/login" autocomplete="on">
+        <div class="dialog-field">
+          <label for="auth-email-input" id="auth-email-label" class="field-label">Student Email:</label>
+          <input type="email" id="auth-email-input" name="username" class="settings-input" placeholder="name@vitstudent.ac.in" autocomplete="username" required />
+          <span id="auth-field-hint" class="field-hint" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Use your official @vitstudent.ac.in student account</span>
+        </div>
+        <div class="dialog-field" id="auth-regno-field">
+          <label for="auth-regno-input" id="auth-regno-label" class="field-label">Student Roll / Registration No:</label>
+          <input type="text" id="auth-regno-input" name="regNo" class="settings-input" placeholder="e.g. 24BCE1001 or 24BIT1002" maxlength="15" autocomplete="off" />
+          <span class="field-hint" id="auth-regno-hint" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Displayed on your support tickets and escalations</span>
+        </div>
+        <div class="dialog-field">
+          <div class="auth-field-header">
+            <label for="auth-password-input" id="auth-password-label" class="field-label">Password:</label>
+            <button type="button" id="auth-forgot-pwd-btn" class="auth-forgot-link">Forgot password?</button>
+          </div>
+          <div class="password-input-wrapper">
+            <input type="password" id="auth-password-input" name="password" class="settings-input password-input-with-toggle" placeholder="Enter your password" autocomplete="current-password" required />
+            <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility" data-target="auth-password-input" title="Show password">
+              <svg class="eye-show" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="eye-hide" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="auth-status-msg" class="auth-status-msg" hidden></div>
+        <div class="dialog-footer">
+          <button type="submit" class="btn-primary auth-submit-btn" id="auth-login-submit-btn">Sign In to Portal</button>
+        </div>
+      </form>
+
+      <!-- Forgot Password & Email Dispatch Form -->
+      <form id="auth-forgot-form" class="dialog-body auth-body" method="POST" action="/api/auth/reset-password" autocomplete="on" hidden>
+        <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">
+          Enter your registered campus email address. An official password reset link and temporary security code will be dispatched to your university mailbox.
+        </div>
+        <div class="dialog-field">
+          <label for="auth-forgot-email-input" class="field-label">Registered Campus Email:</label>
+          <input type="email" id="auth-forgot-email-input" name="username" autocomplete="username" class="settings-input" placeholder="name@vitstudent.ac.in or staff@vit.ac.in" required />
+          <span class="field-hint" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Supports official campus emails and staff accounts</span>
+        </div>
+
+        <!-- Real Mail Dispatch & OTP Verification Card -->
+        <div id="auth-forgot-dispatch-card" class="auth-dispatch-card" hidden>
+          <div class="dispatch-card-head">
+            <span class="dispatch-badge">📧 Security Code Sent</span>
+            <span class="dispatch-time" id="auth-dispatch-time">Check your inbox</span>
+          </div>
+          <div class="dispatch-card-body">
+            <div class="dispatch-to" id="auth-dispatch-to">Code sent to: your@email.com</div>
+            <div style="margin-top: 5px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.4;">
+              We sent a 6-digit verification code to your email. Enter it below to verify your identity and choose a new password.
+            </div>
+          </div>
+          <div class="dialog-field" style="margin-top: 12px;">
+            <label for="auth-otp-input" class="field-label">Enter Security Code (OTP):</label>
+            <input type="text" id="auth-otp-input" class="settings-input" placeholder="e.g. 605760 or VIT-605760" maxlength="12" autocomplete="off" />
+            <span class="field-hint" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Enter the 6 digits (e.g. 605760) or with VIT-. Both work!</span>
+          </div>
+          <div class="dialog-field" style="margin-top: 10px;">
+            <label for="auth-new-password-input" class="field-label">Set New Password:</label>
+            <div class="password-input-wrapper">
+              <input type="password" id="auth-new-password-input" name="new-password" autocomplete="new-password" class="settings-input password-input-with-toggle" placeholder="Enter new password (min. 6 characters)" />
+              <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility" data-target="auth-new-password-input" title="Show password">
+                <svg class="eye-show" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="eye-hide" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="auth-forgot-status-msg" class="auth-status-msg" hidden></div>
+
+        <div class="dialog-footer" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+          <button type="button" class="btn-ghost" id="auth-back-to-login-btn">← Back to Sign In</button>
+          <button type="submit" class="btn-primary" id="auth-forgot-submit-btn">Send Reset Email</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Inert toast container (floating popups decommissioned; UI feedback is 100% in-place) -->
+  <div id="live-toast" class="live-toast" hidden style="display: none !important;">
+    <span id="toast-message" style="display: none;"></span>
+  </div>
+
+  <script src="app.js?v=74"></script>
+</body>
+</html>
