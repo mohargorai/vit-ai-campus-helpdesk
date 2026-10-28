@@ -364,11 +364,57 @@ async function sendEmailJs({ serviceId, templateId, publicKey, to, securityCode,
   return { success: true, message: `Verification email delivered to ${to}` };
 }
 
+// Input sanitization & security guards (XSS, Injection, Prototype Pollution, Overflow)
+function sanitizeText(str, maxLen = 1000) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/<[^>]*>/g, '') // Strip HTML tags to eliminate XSS
+    .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F]/g, '') // Strip control characters
+    .trim()
+    .slice(0, maxLen);
+}
+
+function sanitizeRegNo(regNo) {
+  if (!regNo || typeof regNo !== 'string') return '';
+  const cleaned = regNo.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 15);
+  // Strict format check: e.g. 24BCE1001, 22MIS0045, EMP-MB102, ADM-ROOT
+  const validPattern = /^[0-9]{2}[A-Z]{2,4}[0-9]{3,5}$|^EMP-[A-Z0-9]{3,8}$|^ADM-[A-Z0-9]{3,8}$/;
+  return validPattern.test(cleaned) ? cleaned : '';
+}
+
+function sanitizeEmail(email) {
+  if (!email || typeof email !== 'string') return '';
+  const cleaned = email.trim().toLowerCase().replace(/[\r\n\t]/g, '').slice(0, 100);
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(cleaned) ? cleaned : '';
+}
+
+function parseSafeJson(body, maxBytes = 256 * 1024) {
+  if (typeof body !== 'string' || Buffer.byteLength(body, 'utf8') > maxBytes) {
+    return null;
+  }
+  try {
+    const obj = JSON.parse(body || '{}');
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      delete obj.__proto__;
+      delete obj.constructor;
+      delete obj.prototype;
+    }
+    return obj;
+  } catch (_) {
+    return null;
+  }
+}
+
 const server = http.createServer((req, res) => {
-  // Global CORS headers for cross-device / cloud deployment compatibility
+  // Global Security & CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
   // Fast return for preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
@@ -407,10 +453,20 @@ const server = http.createServer((req, res) => {
   // POST /api/tickets (Create a new escalation ticket)
   if (req.method === 'POST' && urlPath === '/api/tickets') {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 64 * 1024) {
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Payload too large' }));
+        req.destroy();
+      }
+    });
     req.on('end', () => {
+      if (tooLarge) return;
       try {
-        const payload = JSON.parse(body || '{}');
+        const payload = parseSafeJson(body) || {};
         const tickets = getTickets();
 
         let maxSeq = 9140;
@@ -429,15 +485,15 @@ const server = http.createServer((req, res) => {
 
         const newTicket = {
           id: nextId,
-          query: payload.query || 'Inquiry routed to human support desk',
-          reason: payload.reason || 'Answer unavailable in approved knowledge base',
-          confidence: typeof payload.confidence === 'number' ? payload.confidence : 15,
-          timestamp: payload.timestamp || timestamp,
+          query: sanitizeText(payload.query || 'Inquiry routed to human support desk', 1000),
+          reason: sanitizeText(payload.reason || 'Answer unavailable in approved knowledge base', 300),
+          confidence: typeof payload.confidence === 'number' ? Math.max(0, Math.min(100, payload.confidence)) : 15,
+          timestamp: sanitizeText(payload.timestamp || timestamp, 50),
           status: 'Pending Support Review',
           resolved: false,
-          studentName: payload.studentName || 'VITian Student',
-          studentEmail: (payload.studentEmail || '').toLowerCase(),
-          studentRegNo: (payload.studentRegNo || '').toUpperCase()
+          studentName: sanitizeText(payload.studentName || 'VITian Student', 60),
+          studentEmail: sanitizeEmail(payload.studentEmail || ''),
+          studentRegNo: sanitizeRegNo(payload.studentRegNo || '')
         };
 
         tickets.unshift(newTicket);
@@ -447,7 +503,7 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ success: true, ticket: newTicket }));
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: err.message }));
+        res.end(JSON.stringify({ success: false, error: 'Invalid ticket payload' }));
       }
     });
     return;
@@ -456,11 +512,26 @@ const server = http.createServer((req, res) => {
   // POST /api/tickets/reply (Official staff reply from Desk MB-102)
   if (req.method === 'POST' && urlPath === '/api/tickets/reply') {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 32 * 1024) {
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Payload too large' }));
+        req.destroy();
+      }
+    });
     req.on('end', () => {
+      if (tooLarge) return;
       try {
-        const payload = JSON.parse(body || '{}');
-        const { id, reply, staffName, staffEmail, staffRole } = payload;
+        const payload = parseSafeJson(body) || {};
+        const id = sanitizeText(payload.id || '', 40);
+        const reply = sanitizeText(payload.reply || '', 2000);
+        const staffName = sanitizeText(payload.staffName || '', 60);
+        const staffEmail = sanitizeEmail(payload.staffEmail || '');
+        const staffRole = sanitizeText(payload.staffRole || '', 80);
+
         if (!id || !reply) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false, error: 'Ticket ID and reply text are required' }));
@@ -480,9 +551,9 @@ const server = http.createServer((req, res) => {
           now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
         ticket.resolved = true;
-        ticket.reply = reply.trim();
+        ticket.reply = reply;
         ticket.resolvedBy = staffName || 'Dr. K. Ramanathan';
-        ticket.resolvedByEmail = (staffEmail || 'ramanathan.k@vit.ac.in').toLowerCase();
+        ticket.resolvedByEmail = staffEmail || 'ramanathan.k@vit.ac.in';
         ticket.resolvedByRole = staffRole || 'Student Welfare Officer (Desk MB-102)';
         ticket.resolvedAt = timestamp;
         ticket.status = 'Resolved & Replied by Staff (MB-102)';
@@ -493,7 +564,7 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ success: true, ticket }));
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: err.message }));
+        res.end(JSON.stringify({ success: false, error: 'Invalid reply payload' }));
       }
     });
     return;
@@ -539,7 +610,7 @@ const server = http.createServer((req, res) => {
 
   // GET /api/auth/lookup?email=... (Quick student roll lookup for login QoL autofill)
   if (req.method === 'GET' && urlPath === '/api/auth/lookup') {
-    const email = (parsedUrl.searchParams.get('email') || '').trim().toLowerCase();
+    const email = sanitizeEmail(parsedUrl.searchParams.get('email') || '');
     if (!email) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ found: false }));
@@ -551,8 +622,8 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
       res.end(JSON.stringify({
         found: true,
-        name: user.name,
-        regNo: user.regNo || '',
+        name: sanitizeText(user.name, 60),
+        regNo: sanitizeRegNo(user.regNo || ''),
         hasRegNo: Boolean(user.regNo && user.regNo.trim().length > 0)
       }));
       return;
@@ -565,17 +636,27 @@ const server = http.createServer((req, res) => {
   // POST /api/auth/login (Unified sign-in with auto-registration for campus students)
   if (req.method === 'POST' && urlPath === '/api/auth/login') {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 32 * 1024) {
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Payload too large' }));
+        req.destroy();
+      }
+    });
     req.on('end', () => {
+      if (tooLarge) return;
       try {
-        const payload = JSON.parse(body || '{}');
-        const email = (payload.email || '').trim().toLowerCase();
-        const password = (payload.password || '').trim();
-        const enteredRoll = (payload.regNo || '').trim().toUpperCase();
+        const payload = parseSafeJson(body) || {};
+        const email = sanitizeEmail(payload.email || '');
+        const password = typeof payload.password === 'string' ? payload.password.slice(0, 100) : '';
+        const enteredRoll = sanitizeRegNo(payload.regNo || '');
 
         if (!email || !password) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Email and password are required' }));
+          res.end(JSON.stringify({ success: false, error: 'Valid email and password are required' }));
           return;
         }
 
@@ -616,9 +697,9 @@ const server = http.createServer((req, res) => {
           user = {
             id: `std-${Date.now()}`,
             role: 'student',
-            name: formattedName,
+            name: sanitizeText(formattedName, 60),
             email,
-            regNo: enteredRoll || '',
+            regNo: enteredRoll,
             password,
             avatar: '🎓'
           };
@@ -631,7 +712,7 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ success: true, user: safeUser }));
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: err.message }));
+        res.end(JSON.stringify({ success: false, error: 'Invalid login payload' }));
       }
     });
     return;
@@ -640,16 +721,26 @@ const server = http.createServer((req, res) => {
   // POST /api/auth/update-roll (Update Roll Number and sync student tickets)
   if (req.method === 'POST' && urlPath === '/api/auth/update-roll') {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 16 * 1024) {
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Payload too large' }));
+        req.destroy();
+      }
+    });
     req.on('end', () => {
+      if (tooLarge) return;
       try {
-        const payload = JSON.parse(body || '{}');
-        const email = (payload.email || '').trim().toLowerCase();
-        const regNo = (payload.regNo || '').trim().toUpperCase();
+        const payload = parseSafeJson(body) || {};
+        const email = sanitizeEmail(payload.email || '');
+        const regNo = sanitizeRegNo(payload.regNo || '');
 
         if (!email || !regNo) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Email and Roll No are required' }));
+          res.end(JSON.stringify({ success: false, error: 'Valid email and registration number are required' }));
           return;
         }
 
@@ -940,11 +1031,31 @@ const server = http.createServer((req, res) => {
   // Generative AI RAG Proxy Endpoint
   if (req.method === 'POST' && urlPath === '/api/generate') {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 256 * 1024) {
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Payload too large' }));
+        req.destroy();
+      }
+    });
     req.on('end', async () => {
+      if (tooLarge) return;
       try {
-        const payload = JSON.parse(body || '{}');
-        const { query, context, sourceDoc, provider = 'pollinations', apiKey = '' } = payload;
+        const payload = parseSafeJson(body) || {};
+        const query = sanitizeText(payload.query || '', 1000);
+        const context = sanitizeText(payload.context || '', 4000);
+        const sourceDoc = sanitizeText(payload.sourceDoc || '', 150);
+        const provider = sanitizeText(payload.provider || 'pollinations', 30);
+        const apiKey = typeof payload.apiKey === 'string' ? payload.apiKey.trim().slice(0, 200) : '';
+
+        if (!query) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ text: 'Please enter a valid campus inquiry.', provider: 'Helpdesk' }));
+          return;
+        }
 
         const systemPrompt = (context && context.trim().length > 0)
           ? `You are the official VIT Campus Student Support AI Assistant (Operating date: 16 October 2026).
@@ -1138,10 +1249,20 @@ Instructions:
   // Voice Audio Multimodal Transcription Endpoint (Gemini Flash Audio Engine)
   if (req.method === 'POST' && urlPath === '/api/transcribe') {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 6 * 1024 * 1024) {
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ text: '', error: 'Audio payload too large' }));
+        req.destroy();
+      }
+    });
     req.on('end', async () => {
+      if (tooLarge) return;
       try {
-        const payload = JSON.parse(body || '{}');
+        const payload = parseSafeJson(body, 6 * 1024 * 1024) || {};
         const { audioBase64, mimeType = 'audio/wav', apiKey = '' } = payload;
 
         if (!audioBase64) {

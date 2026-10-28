@@ -1606,7 +1606,8 @@ function removeTypingIndicator(row) {
 }
 
 async function handleUserSubmission(queryText) {
-  const trimmed = queryText.trim();
+  // Sanitize user query: strip HTML tags and restrict length to prevent injection/overflow
+  const trimmed = (queryText || "").replace(/<[^>]*>/g, "").trim().slice(0, 1000);
   if (!trimmed) return;
 
   const chatContainer = document.getElementById("chat-container") || document.querySelector(".chat-container");
@@ -3706,6 +3707,14 @@ function setupAuthEventListeners() {
     });
   }
 
+  const authRegNoFieldInput = document.getElementById("auth-regno-input");
+  if (authRegNoFieldInput) {
+    authRegNoFieldInput.addEventListener("input", () => {
+      // Enforce strict alphanumeric format: prevents HTML/script injection
+      authRegNoFieldInput.value = authRegNoFieldInput.value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 15);
+    });
+  }
+
   // 1. Account Button Click: Toggle dropdown if logged in, or open sign in modal if guest
   if (userProfileBtn) {
     userProfileBtn.addEventListener("click", (e) => {
@@ -3929,8 +3938,12 @@ function setupAuthEventListeners() {
 
       const roll = prompt("Enter your official VIT Student Registration Number (e.g. 24BCE1001):", "");
       if (roll !== null) {
-        const clean = roll.trim().toUpperCase();
-        if (!clean) return;
+        const clean = roll.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 15);
+        const validPattern = /^[0-9]{2}[A-Z]{2,4}[0-9]{3,5}$|^EMP-[A-Z0-9]{3,8}$|^ADM-[A-Z0-9]{3,8}$/;
+        if (!validPattern.test(clean)) {
+          alert("Invalid registration number format. Please enter your valid official university ID (e.g. 24BCE1001).");
+          return;
+        }
 
         state.currentUser.regNo = clean;
         saveAccount(state.currentUser);
