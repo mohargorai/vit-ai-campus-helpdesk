@@ -641,7 +641,7 @@ const server = http.createServer((req, res) => {
         if (user) {
           if (user.regNo && user.regNo.trim().length > 0) {
             res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, error: 'Registration number is permanently locked to this account and cannot be modified.' }));
+            res.end(JSON.stringify({ success: false, error: 'Registration number is already registered to this student account and cannot be modified.' }));
             return;
           }
           user.regNo = regNo;

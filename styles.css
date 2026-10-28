@@ -4074,24 +4074,10 @@ body[data-user-role="admin"] .student-only {
   background: rgba(59, 130, 246, 0.1);
 }
 
-.btn-edit-roll.is-locked {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #94a3b8;
-  cursor: not-allowed;
-  opacity: 0.85;
-}
-
-.btn-edit-roll.is-locked:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.25);
-  color: #cbd5e1;
-}
-
 .settings-input.is-locked,
 .settings-input:read-only {
-  background: rgba(34, 197, 94, 0.06);
-  border-color: rgba(34, 197, 94, 0.35);
-  color: #4ade80;
-  cursor: not-allowed;
-  font-weight: 500;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  cursor: default;
 }

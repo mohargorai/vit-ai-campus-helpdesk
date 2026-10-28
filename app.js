@@ -3476,24 +3476,16 @@ function updateAccountDropdownUI() {
 
   const btnEditRoll = document.getElementById("btn-edit-roll");
   if (btnEditRoll) {
-    if (isStaff || isAdmin) {
+    const hasRoll = Boolean(user.regNo && user.regNo.trim().length > 0);
+    if (isStaff || isAdmin || hasRoll) {
       btnEditRoll.setAttribute("hidden", "true");
     } else {
       btnEditRoll.removeAttribute("hidden");
-      const hasRoll = Boolean(user.regNo && user.regNo.trim().length > 0);
-      if (hasRoll) {
-        btnEditRoll.textContent = "🔒 Locked";
-        btnEditRoll.title = "Registration number is permanently locked to your student account (cannot be changed)";
-        btnEditRoll.className = "btn-edit-roll student-only is-locked";
-        btnEditRoll.style.cursor = "not-allowed";
-        btnEditRoll.style.opacity = "0.85";
-      } else {
-        btnEditRoll.textContent = "➕ Set Roll No";
-        btnEditRoll.title = "Set your Registration Number (one-time setup)";
-        btnEditRoll.className = "btn-edit-roll student-only";
-        btnEditRoll.style.cursor = "pointer";
-        btnEditRoll.style.opacity = "1";
-      }
+      btnEditRoll.textContent = "➕ Set Roll No";
+      btnEditRoll.title = "Set your official student registration number";
+      btnEditRoll.className = "btn-edit-roll student-only";
+      btnEditRoll.style.cursor = "pointer";
+      btnEditRoll.style.opacity = "1";
     }
   }
 }
@@ -3551,7 +3543,7 @@ function setupAuthEventListeners() {
       authRegNoInput.readOnly = false;
       authRegNoInput.classList.remove("is-locked");
       if (authRegNoHint) {
-        authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Displayed on your support tickets and escalations (e.g. 24BIT0462)</span>';
+        authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official student registration number (e.g. 24BIT0462)</span>';
       }
       return;
     }
@@ -3588,7 +3580,7 @@ function setupAuthEventListeners() {
     authRegNoInput.readOnly = false;
     authRegNoInput.classList.remove("is-locked");
     if (authRegNoHint) {
-      authRegNoHint.innerHTML = '<span style="color:#fbbf24; display:inline-flex; align-items:center; gap:4px;">⚠️ <strong>One-time only:</strong> Once entered and saved, your registration number cannot be changed.</span>';
+      authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official student registration number (e.g. 24BIT0462)</span>';
     }
   }
 
@@ -3600,7 +3592,7 @@ function setupAuthEventListeners() {
     authRegNoInput.readOnly = true;
     authRegNoInput.classList.add("is-locked");
     if (authRegNoHint) {
-      authRegNoHint.innerHTML = `<span style="color:#4ade80; display:inline-flex; align-items:center; gap:4px; font-weight:500;">🔒 <strong>Registration ID linked:</strong> ${escapeHTML(regNo)} (Permanently locked)</span>`;
+      authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official registration number linked to this account (read-only)</span>';
     }
   }
 
@@ -3917,32 +3909,23 @@ function setupAuthEventListeners() {
     });
   }
 
-  // 4B. Roll Number Management in Profile Dropdown (Permanently Locked once set)
+  // 4B. Roll Number Initial Setup in Profile Dropdown
   const btnEditRoll = document.getElementById("btn-edit-roll");
   if (btnEditRoll) {
     btnEditRoll.addEventListener("click", () => {
       const cur = state.currentUser ? (state.currentUser.regNo || "") : "";
-      if (cur) {
-        alert(`🔒 Registration Number Locked\n\nYour registration number (${cur}) is permanently bound to your university student account.\n\nTo prevent identity misuse, registration numbers cannot be modified once set. For official corrections, please contact Desk MB-102 (Student Support Office).`);
-        return;
-      }
+      if (cur) return;
 
-      const warningText = "⚠️ ONE-TIME REGISTRATION SETUP:\n\nOnce set, your Registration / Roll Number CANNOT be modified or changed again.\n\nPlease ensure you enter your accurate official VIT registration number (e.g. 24BIT0462).";
-      alert(warningText);
-
-      const roll = prompt("Enter your VIT Student Registration / Roll Number (e.g. 24BIT0462):", "");
+      const roll = prompt("Enter your official VIT Student Registration Number (e.g. 24BIT0462):", "");
       if (roll !== null) {
         const clean = roll.trim().toUpperCase();
         if (!clean) return;
-
-        const confirmSet = confirm(`Confirm Registration Number:\n\n${clean}\n\n⚠️ This will be permanently locked to your account and cannot be altered afterwards. Are you sure this is correct?`);
-        if (!confirmSet) return;
 
         state.currentUser.regNo = clean;
         saveAccount(state.currentUser);
         localStorage.setItem("vit_current_user", JSON.stringify(state.currentUser));
 
-        // Update all active inquiries for this student with the new roll number
+        // Update active inquiries for this student with the registration number
         state.tickets.forEach(t => {
           if (t.studentEmail && t.studentEmail.toLowerCase() === state.currentUser.email.toLowerCase()) {
             t.studentRegNo = clean;
@@ -3950,7 +3933,7 @@ function setupAuthEventListeners() {
         });
         saveTickets(state.tickets);
 
-        // Sync roll update to backend storage
+        // Sync roll to backend storage
         fetch('/api/auth/update-roll', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3961,7 +3944,7 @@ function setupAuthEventListeners() {
         updateAccountDropdownUI();
         updateTicketBadges();
         renderTicketsView();
-        showToast(`✓ Registration Number locked to ${clean}`);
+        showToast(`✓ Registration number set to ${clean}`);
       }
     });
   }
