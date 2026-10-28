@@ -987,25 +987,73 @@ function migrateLegacyConversations() {
     if (!legacyRaw) return;
     const list = JSON.parse(legacyRaw);
     if (Array.isArray(list) && list.length > 0) {
-      // Default migration to the student account that originally initiated the chat
-      const targetUser = state.currentUser?.email?.toLowerCase() || "mohar.gorai2024@vitstudent.ac.in";
-      const targetKey = `vit_conversations_${targetUser}`;
-      if (!localStorage.getItem(targetKey)) {
-        localStorage.setItem(targetKey, JSON.stringify(list));
-      }
+      // Group conversations by their recorded ownerEmail so they go strictly to the creator's account
+      list.forEach(c => {
+        const owner = (c.ownerEmail && c.ownerEmail !== "guest")
+          ? c.ownerEmail.trim().toLowerCase()
+          : "mohar.gorai2024@vitstudent.ac.in";
+        const targetKey = `vit_conversations_${owner}`;
+        let existing = [];
+        try {
+          const raw = localStorage.getItem(targetKey);
+          if (raw) existing = JSON.parse(raw) || [];
+        } catch (_) {}
+        if (!existing.some(item => item.id === c.id)) {
+          c.ownerEmail = owner;
+          existing.push(c);
+          localStorage.setItem(targetKey, JSON.stringify(existing));
+        }
+      });
     }
     localStorage.removeItem("vit_conversations");
+  } catch (_) { }
+}
+
+function sanitizeCrossAccountConversations() {
+  try {
+    // Purge student chats that accidentally leaked into guest or staff storages during early beta
+    const guestKey = "vit_conversations_guest";
+    const guestRaw = localStorage.getItem(guestKey);
+    if (guestRaw) {
+      const list = JSON.parse(guestRaw);
+      if (Array.isArray(list)) {
+        const pureGuest = list.filter(c => !c.ownerEmail || c.ownerEmail === "guest");
+        localStorage.setItem(guestKey, JSON.stringify(pureGuest));
+      }
+    }
+
+    // Clean any staff accounts from non-staff inquiries
+    const curEmail = (state.currentUser && state.currentUser.email) ? state.currentUser.email.trim().toLowerCase() : "";
+    if (curEmail && (curEmail.endsWith("@vit.ac.in") || curEmail === "admin@vit.ac.in")) {
+      const staffKey = `vit_conversations_${curEmail}`;
+      const staffRaw = localStorage.getItem(staffKey);
+      if (staffRaw) {
+        const list = JSON.parse(staffRaw);
+        if (Array.isArray(list)) {
+          const pureStaff = list.filter(c => c.ownerEmail === curEmail);
+          localStorage.setItem(staffKey, JSON.stringify(pureStaff));
+        }
+      }
+    }
   } catch (_) { }
 }
 
 function getConversations() {
   try {
     migrateLegacyConversations();
+    sanitizeCrossAccountConversations();
     const key = getConversationsStorageKey();
     const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    const currentEmail = (state.currentUser && state.currentUser.email)
+      ? state.currentUser.email.trim().toLowerCase()
+      : "guest";
+
+    // Strict account privacy: only return conversations owned by the active user/guest
+    return parsed.filter(c => !c.ownerEmail || c.ownerEmail === currentEmail);
   } catch (_) {
     return [];
   }

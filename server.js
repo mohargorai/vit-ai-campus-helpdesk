@@ -1084,16 +1084,6 @@ Instructions:
         if (envGeminiKey && !candidateKeys.includes(envGeminiKey)) candidateKeys.push(envGeminiKey);
 
         if (provider === 'gemini') {
-          if (candidateKeys.length === 0) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              text: "⚠️ **Google Gemini** is ready to connect!\n\nTo activate it, please enter your free API key.\n- Get your key from [Google AI Studio](https://aistudio.google.com/app/apikey).\n\nOpen **Settings** and enter your API key to enable cloud generation.",
-              requiresKey: true,
-              provider: 'Google Gemini (Key Required)'
-            }));
-            return;
-          }
-
           const geminiModels = [
             'gemini-3.5-flash',
             'gemini-3.5-flash-lite',
@@ -1107,56 +1097,46 @@ Instructions:
           for (const keyToUse of candidateKeys) {
             for (const modelName of geminiModels) {
               try {
-                // First try standard system_instruction format with generous 1200 token limit so CoT thinking doesn't truncate the answer
-                let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
+                const genConfig = {
+                  temperature: 0.35,
+                  maxOutputTokens: 1200
+                };
+                if (modelName === 'gemini-3.5-flash') {
+                  genConfig.thinkingConfig = { thinkingBudget: 0 };
+                }
+
+                const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    system_instruction: {
-                      parts: [{ text: systemPrompt }]
-                    },
                     contents: [{
-                      parts: [{ text: `Student Question: "${query}"` }]
+                      parts: [{ text: `${systemPrompt}\n\nStudent Message: "${query}"` }]
                     }],
-                    generationConfig: {
-                      temperature: 0.3,
-                      maxOutputTokens: 1200
-                    }
+                    generationConfig: genConfig
                   }),
-                  signal: AbortSignal.timeout(9500)
+                  signal: AbortSignal.timeout(9000)
                 });
-
-                // If model doesn't support system_instruction (HTTP 400), retry with inline content
-                if (geminiRes.status === 400) {
-                  geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      contents: [{
-                        parts: [{ text: `${systemPrompt}\n\nStudent Question: "${query}"` }]
-                      }],
-                      generationConfig: {
-                        temperature: 0.3,
-                        maxOutputTokens: 1200
-                      }
-                    }),
-                    signal: AbortSignal.timeout(9500)
-                  });
-                }
 
                 if (geminiRes.ok) {
                   const data = await geminiRes.json();
-                  const candidateParts = data.candidates?.[0]?.content?.parts || [];
-                  const textParts = candidateParts
-                    .filter(p => p.text && !p.thought)
-                    .map(p => p.text.trim())
-                    .filter(Boolean);
-                  const text = textParts.join('\n\n') || (candidateParts[candidateParts.length - 1]?.text || '').trim();
+                  const candidate = data.candidates?.[0];
+                  let text = '';
+                  if (candidate?.content?.parts) {
+                    const answerParts = candidate.content.parts
+                      .filter(p => !p.thought && typeof p.text === 'string')
+                      .map(p => p.text.trim())
+                      .filter(t => t.length > 0);
+                    if (answerParts.length > 0) {
+                      text = answerParts.join('\n\n');
+                    } else if (candidate.content.parts[0]?.text) {
+                      text = candidate.content.parts[0].text.trim();
+                    }
+                  }
 
-                  if (text && text.length > 0) {
+                  if (text && text.length > 20 && !/^(\W+|context\b)/i.test(text)) {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
-                      text: text,
+                      text: text.trim(),
                       provider: `Google ${modelName}`
                     }));
                     geminiSuccess = true;
@@ -1175,16 +1155,55 @@ Instructions:
 
           if (geminiSuccess) return;
 
+          // Seamless failover to Groq if Gemini is quota-exhausted or unavailable
+          const failoverGroqKey = (process.env.GROQ_API_KEY || (apiKey?.startsWith('gsk_') ? apiKey : '')).trim();
+          if (failoverGroqKey) {
+            const groqModels = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile'];
+            for (const mName of groqModels) {
+              try {
+                const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${failoverGroqKey}`
+                  },
+                  body: JSON.stringify({
+                    model: mName,
+                    messages: [
+                      { role: 'system', content: systemPrompt },
+                      { role: 'user', content: query }
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 600
+                  }),
+                  signal: AbortSignal.timeout(6000)
+                });
+                if (groqRes.ok) {
+                  const groqData = await groqRes.json();
+                  const groqText = groqData.choices?.[0]?.message?.content;
+                  if (groqText && groqText.trim().length > 15) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                      text: groqText.trim(),
+                      provider: `Groq (${mName})`
+                    }));
+                    return;
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
-            text: `⚠️ **Gemini API Error**: Could not generate response with the provided key. Please check your key at [Google AI Studio](https://aistudio.google.com/app/apikey).`,
-            provider: 'Google Gemini (Error)'
+            text: `⚠️ **AI Service Notice**: Generation is currently busy. Please try asking again or switch to **Groq Cloud AI** via the model selector.`,
+            provider: 'AI Service (Retry)'
           }));
           return;
         }
 
         // 2. Groq Cloud (100% Free Tier - Ultra-fast AI)
-        const effectiveGroqKey = (apiKey || process.env.GROQ_API_KEY || '').trim();
+        const effectiveGroqKey = (apiKey?.startsWith('gsk_') ? apiKey : (process.env.GROQ_API_KEY || apiKey || '')).trim();
         if (provider === 'groq' && effectiveGroqKey) {
           const groqModels = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile'];
           for (const modelName of groqModels) {
@@ -1202,7 +1221,7 @@ Instructions:
                     { role: 'user', content: query }
                   ],
                   temperature: 0.3,
-                  max_tokens: 350
+                  max_tokens: 600
                 }),
                 signal: AbortSignal.timeout(7000)
               });
