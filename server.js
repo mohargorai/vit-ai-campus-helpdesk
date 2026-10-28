@@ -3,6 +3,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 const tls = require('node:tls');
 
+// Auto-load local .env if present (zero dependencies)
+if (fs.existsSync(path.join(__dirname, '.env'))) {
+  try {
+    const envLines = fs.readFileSync(path.join(__dirname, '.env'), 'utf8').split('\n');
+    for (const line of envLines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const idx = trimmed.indexOf('=');
+      if (idx !== -1) {
+        const key = trimmed.slice(0, idx).trim();
+        const val = trimmed.slice(idx + 1).trim();
+        if (!process.env[key]) process.env[key] = val;
+      }
+    }
+  } catch (_) {}
+}
+
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -962,7 +979,14 @@ Instructions:
             return;
           }
 
-          const geminiModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-8b'];
+          const geminiModels = [
+            'gemini-3.5-flash-lite',
+            'gemini-3.5-flash',
+            'gemini-flash-lite-latest',
+            'gemini-3.1-flash-lite',
+            'gemini-3.7-flash',
+            'gemini-3.8-flash'
+          ];
           let geminiSuccess = false;
 
           for (const modelName of geminiModels) {
@@ -1124,7 +1148,7 @@ Instructions:
         }
 
         const effectiveGeminiKey = (apiKey || process.env.GEMINI_API_KEY || '').trim();
-        const geminiModels = ['gemini-1.5-flash', 'gemini-2.0-flash'];
+        const geminiModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-lite-latest'];
 
         for (const modelName of geminiModels) {
           try {
