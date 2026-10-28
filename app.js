@@ -3505,7 +3505,6 @@ function updateAccountDropdownUI() {
 function setupAuthEventListeners() {
   const userProfileBtn = document.getElementById("user-profile-btn");
   const userAccountDropdown = document.getElementById("user-account-dropdown");
-  const accountSwitchBtn = document.getElementById("account-switch-btn");
   const accountLogoutBtn = document.getElementById("account-logout-btn");
   const authModal = document.getElementById("auth-modal");
   const closeAuthModalBtn = document.getElementById("close-auth-modal-btn");
@@ -3543,32 +3542,39 @@ function setupAuthEventListeners() {
     const authRegNoHint = document.getElementById("auth-regno-hint");
     if (!authRegNoInput) return;
 
-    if (activeAuthRole === "staff") {
-      authRegNoInput.readOnly = false;
-      authRegNoInput.classList.remove("is-locked");
-      return;
-    }
-
     let email = (rawEmail || "").trim().toLowerCase();
+    const isStaff = activeAuthRole === "staff" || email.endsWith("@vit.ac.in");
+
     if (!email) {
       authRegNoInput.value = "";
       authRegNoInput.readOnly = false;
       authRegNoInput.classList.remove("is-locked");
       if (authRegNoHint) {
-        authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official student registration number (e.g. 24BCE1001)</span>';
+        authRegNoHint.innerHTML = `<span style="color:var(--text-muted);">${isStaff ? "Official staff or faculty ID number" : "Official university identification number"}</span>`;
       }
       return;
     }
 
+    // Direct autofill for default admin and staff accounts
+    if (email === "admin@vit.ac.in" || email.startsWith("admin.")) {
+      applyFoundRegistration("ADM-ROOT");
+      return;
+    }
+    if (email === "staff.desk@vit.ac.in" || email.startsWith("staff.")) {
+      applyFoundRegistration("EMP-MB102");
+      return;
+    }
+
     if (!email.includes("@")) {
-      email = `${email}@vitstudent.ac.in`;
+      email = isStaff ? `${email}@vit.ac.in` : `${email}@vitstudent.ac.in`;
     }
 
     // 1. Instant check from local accounts store
     const localAccounts = getAccounts();
     const localMatch = localAccounts.find(a => a.email && a.email.toLowerCase() === email);
-    if (localMatch && localMatch.regNo && localMatch.regNo.trim().length > 0 && !localMatch.regNo.startsWith("24BCE1170")) {
+    if (localMatch && localMatch.regNo && localMatch.regNo.trim().length > 0) {
       applyFoundRegistration(localMatch.regNo);
+      return;
     }
 
     // 2. Query live server lookup endpoint for authoritative locked roll number
@@ -3578,21 +3584,17 @@ function setupAuthEventListeners() {
         const data = await res.json();
         if (data.found && data.hasRegNo && data.regNo) {
           applyFoundRegistration(data.regNo);
-          saveAccount({ email, name: data.name || '', regNo: data.regNo, role: 'student' });
+          saveAccount({ email, name: data.name || '', regNo: data.regNo, role: isStaff ? 'staff' : 'student' });
           return;
         }
       }
     } catch (_) {}
 
-    if (localMatch && localMatch.regNo && localMatch.regNo.trim().length > 0 && !localMatch.regNo.startsWith("24BCE1170")) {
-      return;
-    }
-
     // Account not yet registered or no roll number set
     authRegNoInput.readOnly = false;
     authRegNoInput.classList.remove("is-locked");
     if (authRegNoHint) {
-      authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official student registration number (e.g. 24BCE1001)</span>';
+      authRegNoHint.innerHTML = `<span style="color:var(--text-muted);">${isStaff ? "Official staff or faculty ID number" : "Official university identification number"}</span>`;
     }
   }
 
@@ -3604,7 +3606,7 @@ function setupAuthEventListeners() {
     authRegNoInput.readOnly = true;
     authRegNoInput.classList.add("is-locked");
     if (authRegNoHint) {
-      authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official registration number linked to this account (read-only)</span>';
+      authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official ID linked to this account (read-only)</span>';
     }
   }
 
@@ -3659,22 +3661,17 @@ function setupAuthEventListeners() {
     const authRegNoInput = document.getElementById("auth-regno-input");
     const authRegNoHint = document.getElementById("auth-regno-hint");
     if (authRegNoLabel) {
-      authRegNoLabel.textContent = isStaff ? "Staff Employee ID:" : "Student Roll / Registration No:";
+      authRegNoLabel.textContent = isStaff ? "Staff Employee ID:" : "Registration Number:";
     }
     if (authRegNoInput) {
-      authRegNoInput.placeholder = isStaff ? "e.g. EMP-MB102" : "e.g. 24BCE1001 or 24BCE1002";
+      authRegNoInput.placeholder = isStaff ? "Enter your employee ID" : "Enter your registration number";
     }
-    if (isStaff) {
-      if (authRegNoInput) {
-        authRegNoInput.readOnly = false;
-        authRegNoInput.classList.remove("is-locked");
-      }
-      if (authRegNoHint) {
-        authRegNoHint.textContent = "Your official staff or faculty ID number";
-      }
-    } else {
-      checkAndAutofillRegistration(authEmailInput ? authEmailInput.value : "");
+    if (authRegNoHint) {
+      authRegNoHint.textContent = isStaff 
+        ? "Official staff or faculty ID number"
+        : "Official university identification number";
     }
+    checkAndAutofillRegistration(authEmailInput ? authEmailInput.value : "");
   }
 
   if (authTabStudent) {
@@ -3739,13 +3736,6 @@ function setupAuthEventListeners() {
     accountInquiriesBtn.addEventListener("click", () => {
       closeAccountDropdown();
       switchTab("tickets");
-    });
-  }
-
-  if (accountSwitchBtn) {
-    accountSwitchBtn.addEventListener("click", () => {
-      closeAccountDropdown();
-      openAuthModal();
     });
   }
 
@@ -3936,12 +3926,12 @@ function setupAuthEventListeners() {
       const cur = state.currentUser ? (state.currentUser.regNo || "") : "";
       if (cur) return;
 
-      const roll = prompt("Enter your official VIT Student Registration Number (e.g. 24BCE1001):", "");
+      const roll = prompt("Enter your official VIT Registration Number:", "");
       if (roll !== null) {
         const clean = roll.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 15);
         const validPattern = /^[0-9]{2}[A-Z]{2,4}[0-9]{3,5}$|^EMP-[A-Z0-9]{3,8}$|^ADM-[A-Z0-9]{3,8}$/;
         if (!validPattern.test(clean)) {
-          alert("Invalid registration number format. Please enter your valid official university ID (e.g. 24BCE1001).");
+          alert("Invalid registration number format. Please enter a valid registration number.");
           return;
         }
 

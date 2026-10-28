@@ -618,7 +618,7 @@ const server = http.createServer((req, res) => {
     }
     const accounts = getAccounts();
     const user = accounts.find(a => a.email.toLowerCase() === email);
-    if (user && user.role === 'student') {
+    if (user) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
       res.end(JSON.stringify({
         found: true,
