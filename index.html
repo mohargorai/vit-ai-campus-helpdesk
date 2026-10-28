@@ -223,14 +223,15 @@
         <div class="settings-field">
           <label class="settings-mini-label" for="select-ai-provider">Active Generative Provider:</label>
           <select id="select-ai-provider" class="settings-select">
-            <option value="gemini" selected>⚡ Google Gemini 1.5 Flash (Default)</option>
+            <option value="gemini" selected>⚡ Google Gemini Flash (Default)</option>
+            <option value="groq">🚀 Groq Cloud AI (Ultra-Fast Free Tier)</option>
             <option value="local">🛡️ Local Campus RAG (Offline)</option>
           </select>
         </div>
-        <!-- Admin-Only Gemini API Key Configuration (Hidden from Students & Staff) -->
+        <!-- Admin-Only Gemini / Groq API Key Configuration (Hidden from Students & Staff) -->
         <div class="settings-field admin-only" style="margin-top: 8px;">
-          <label class="settings-mini-label" for="ai-api-key">Gemini API Key (Admin Only):</label>
-          <input type="password" id="ai-api-key" class="settings-input" placeholder="Enter Gemini API key..." />
+          <label class="settings-mini-label" for="ai-api-key">API Key (Gemini or Groq):</label>
+          <input type="password" id="ai-api-key" class="settings-input" placeholder="Enter Gemini (AQ... / AIza...) or Groq (gsk_...) key" />
         </div>
       </div>
 
@@ -428,14 +429,26 @@
               <!-- Gemini Model Selection Popover -->
               <div id="gemini-model-menu" class="gemini-model-dropdown" hidden>
                 <div class="model-menu-header">Select AI Model</div>
-                <button type="button" class="model-menu-item active" data-model="gemini" data-label="Flash">
+                <button type="button" class="model-menu-item active" data-model="gemini" data-label="Gemini">
                   <div class="model-item-info">
                     <div class="model-item-title">
                       <span class="model-icon">⚡</span>
-                      <strong>Google Gemini 1.5 Flash</strong>
+                      <strong>Google Gemini Flash</strong>
                       <span class="model-badge-rec">Default</span>
                     </div>
                     <span class="model-item-desc">Fast, grounded answers with official campus citations</span>
+                  </div>
+                  <span class="model-check" aria-hidden="true">✓</span>
+                </button>
+
+                <button type="button" class="model-menu-item" data-model="groq" data-label="Groq">
+                  <div class="model-item-info">
+                    <div class="model-item-title">
+                      <span class="model-icon">🚀</span>
+                      <strong>Groq Cloud AI</strong>
+                      <span class="model-badge-rec">Ultra-Fast</span>
+                    </div>
+                    <span class="model-item-desc">High-speed inference via Groq LPU engine</span>
                   </div>
                   <span class="model-check" aria-hidden="true">✓</span>
                 </button>

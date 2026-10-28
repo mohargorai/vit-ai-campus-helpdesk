@@ -1060,21 +1060,19 @@ let activeReplyTicketId = null;
 function updateActiveModelBadge() {
   if (activeModelLabel) {
     const labels = {
-      gemini: "Google Gemini 1.5 Flash",
-      groq: "Groq Llama 3.3",
-      pollinations: "Open LLM",
+      gemini: "Google Gemini Flash",
+      groq: "Groq Cloud AI",
       local: "Local Campus RAG"
     };
-    activeModelLabel.textContent = labels[state.aiProvider] || "Google Gemini 1.5 Flash";
+    activeModelLabel.textContent = labels[state.aiProvider] || "Google Gemini Flash";
   }
   if (geminiModelText) {
     const shortNames = {
-      gemini: "Flash",
-      groq: "Llama 3.3",
-      pollinations: "Open LLM",
+      gemini: "Gemini",
+      groq: "Groq",
       local: "Local"
     };
-    geminiModelText.textContent = shortNames[state.aiProvider] || "Flash";
+    geminiModelText.textContent = shortNames[state.aiProvider] || "Gemini";
   }
   if (geminiModelMenu) {
     geminiModelMenu.querySelectorAll(".model-menu-item[data-model]").forEach(item => {
