@@ -208,47 +208,22 @@
         </div>
       </div>
 
-      <div class="settings-divider"></div>
+      <div class="settings-divider admin-only"></div>
 
-      <!-- Section 3: AI Model Selection (Available to All) & API Key (Admin Only) -->
-      <div class="settings-section">
+      <!-- Section 3: AI Provider API Keys (Admin Only) -->
+      <div class="settings-section admin-only">
         <div class="settings-section-head">
-          <span class="settings-section-label">⚡ AI Model Selection</span>
-        </div>
-        <div class="settings-field">
-          <label class="settings-mini-label" for="select-ai-provider">Active Generative Provider:</label>
-          <select id="select-ai-provider" class="settings-select">
-            <option value="gemini" selected>⚡ Google Gemini Flash (Default)</option>
-            <option value="groq">🚀 Groq Cloud AI (Ultra-Fast Free Tier)</option>
-            <option value="local">🛡️ Local Campus RAG (Offline)</option>
-          </select>
+          <span class="settings-section-label">⚡ AI Provider API Keys</span>
         </div>
         <!-- Admin-Only Dedicated API Key Configuration (Hidden from Students & Staff) -->
-        <div class="settings-field admin-only" style="margin-top: 8px;">
+        <div class="settings-field" style="margin-top: 8px;">
           <label class="settings-mini-label" for="gemini-api-key">Google Gemini API Key:</label>
           <input type="password" id="gemini-api-key" class="settings-input" placeholder="Enter Gemini key (AQ.Ab8... or AIza...)" autocomplete="off" />
         </div>
-        <div class="settings-field admin-only" style="margin-top: 8px;">
+        <div class="settings-field" style="margin-top: 8px;">
           <label class="settings-mini-label" for="groq-api-key">Groq Cloud API Key:</label>
           <input type="password" id="groq-api-key" class="settings-input" placeholder="Enter Groq key (gsk_...)" autocomplete="off" />
         </div>
-      </div>
-
-      <div class="settings-divider admin-only"></div>
-
-      <!-- Section 4: Email Dispatch (Admin Only) -->
-      <div class="settings-section admin-only">
-        <div class="settings-section-head">
-          <span class="settings-section-label">📧 Email Dispatch (Admin Only)</span>
-          <span class="badge badge-success" id="mail-active-provider-badge">EmailJS / Gmail Active</span>
-        </div>
-        <div class="settings-field">
-          <span class="settings-help-text" style="color: #4ade80; display: block; margin-top: 4px;">✓ Email dispatch active via EmailJS &amp; Gmail OAuth2. Delivery enabled for university addresses.</span>
-        </div>
-        <div id="smtp-status-msg" class="auth-status-msg" hidden style="margin-top: 8px;"></div>
-        <button type="button" id="test-smtp-btn" class="btn-ghost" style="margin-top: 8px; font-size: 11.5px; padding: 6px 12px; width: 100%; justify-content: center;">
-          <span>Verify &amp; Send Test Email</span>
-        </button>
       </div>
 
       <!-- Project Team Members Card -->

@@ -844,6 +844,20 @@ function getCurrentUser() {
 function logoutUser() {
   state.currentUser = null;
   localStorage.setItem("vit_current_user", "logged_out");
+  const authEmailInput = document.getElementById("auth-email-input");
+  const authPasswordInput = document.getElementById("auth-password-input");
+  const authRegNoInput = document.getElementById("auth-regno-input");
+  const authRegNoHint = document.getElementById("auth-regno-hint");
+  if (authEmailInput) authEmailInput.value = "";
+  if (authPasswordInput) authPasswordInput.value = "";
+  if (authRegNoInput) {
+    authRegNoInput.value = "";
+    authRegNoInput.readOnly = false;
+    authRegNoInput.classList.remove("is-locked");
+  }
+  if (authRegNoHint) {
+    authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official university identification number</span>';
+  }
   updateUserProfileUI();
   updateTicketBadges();
   renderTicketsView();
@@ -3210,161 +3224,7 @@ function setupEventListeners() {
       });
     }
 
-    // Real Email Settings Handlers (Resend API & Gmail SMTP)
-    const selectMailProvider = document.getElementById("select-mail-provider");
-    const mailResendFields = document.getElementById("mail-resend-fields");
-    const mailGmailFields = document.getElementById("mail-gmail-fields");
-    const resendApiKeyInput = document.getElementById("resend-api-key-input");
-    const smtpUserInput = document.getElementById("smtp-user-input");
-    const smtpPassInput = document.getElementById("smtp-pass-input");
-    const testSmtpBtn = document.getElementById("test-smtp-btn");
-    const smtpStatusMsg = document.getElementById("smtp-status-msg");
-    const mailActiveBadge = document.getElementById("mail-active-provider-badge");
 
-    if (selectMailProvider) {
-      selectMailProvider.addEventListener("change", () => {
-        const prov = selectMailProvider.value;
-        if (prov === "resend") {
-          mailResendFields?.removeAttribute("hidden");
-          mailGmailFields?.setAttribute("hidden", "true");
-        } else {
-          mailResendFields?.setAttribute("hidden", "true");
-          mailGmailFields?.removeAttribute("hidden");
-        }
-      });
-    }
-
-    // Fetch existing email configuration from server
-    fetch('/api/mail-config')
-      .then(res => res.json())
-      .then(cfg => {
-        if (selectMailProvider && cfg.provider) {
-          selectMailProvider.value = cfg.provider;
-          selectMailProvider.dispatchEvent(new Event("change"));
-        }
-        if (resendApiKeyInput && cfg.maskedKey) resendApiKeyInput.placeholder = cfg.maskedKey;
-        if (smtpUserInput && cfg.smtpUser) smtpUserInput.value = cfg.smtpUser;
-        if (smtpPassInput && cfg.maskedPass) smtpPassInput.placeholder = cfg.maskedPass;
-        if (mailActiveBadge) {
-          if (cfg.configured) {
-            mailActiveBadge.textContent = cfg.provider === 'emailjs' 
-              ? '⚡ EmailJS / Gmail Active' 
-              : (cfg.provider === 'resend' ? '⚡ Resend Active' : '📨 Gmail Active');
-            mailActiveBadge.className = 'badge badge-success';
-          } else {
-            mailActiveBadge.textContent = 'Not Configured';
-            mailActiveBadge.className = 'badge badge-warning';
-          }
-        }
-        if (smtpStatusMsg && cfg.configured) {
-          smtpStatusMsg.className = "auth-status-msg success";
-          smtpStatusMsg.textContent = cfg.provider === 'emailjs'
-            ? `✓ Email dispatch active via EmailJS & Gmail OAuth2`
-            : (cfg.provider === 'resend'
-              ? `✓ Email dispatch active via Resend API (${cfg.maskedKey})`
-              : `✓ Email dispatch active (${cfg.smtpUser})`);
-          smtpStatusMsg.removeAttribute("hidden");
-        }
-      })
-      .catch(() => {});
-
-    if (testSmtpBtn) {
-      testSmtpBtn.addEventListener("click", async () => {
-        const prov = selectMailProvider ? selectMailProvider.value : "resend";
-        const resendKey = resendApiKeyInput ? resendApiKeyInput.value.trim() : "";
-        const user = smtpUserInput ? smtpUserInput.value.trim() : "";
-        const pass = smtpPassInput ? smtpPassInput.value.trim() : "";
-
-        if (prov === "resend") {
-          testSmtpBtn.disabled = true;
-          testSmtpBtn.innerHTML = `<span>Verifying Resend API &amp; sending live test...</span>`;
-          if (smtpStatusMsg) smtpStatusMsg.setAttribute("hidden", "true");
-
-          try {
-            const res = await fetch('/api/save-mail-config', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                provider: 'resend',
-                resendApiKey: resendKey,
-                testRecipient: (state.currentUser && state.currentUser.email) || 'student@vitstudent.ac.in'
-              })
-            });
-            const data = await res.json();
-            if (data.success) {
-              if (smtpStatusMsg) {
-                smtpStatusMsg.className = "auth-status-msg success";
-                smtpStatusMsg.textContent = `✓ ${data.message}`;
-                smtpStatusMsg.removeAttribute("hidden");
-              }
-              if (mailActiveBadge) {
-                mailActiveBadge.textContent = '⚡ Resend Active';
-                mailActiveBadge.className = 'badge badge-success';
-              }
-              showToast(`✓ Verification email sent to ${(state.currentUser && state.currentUser.email) || 'student@vitstudent.ac.in'}!`);
-            } else {
-              throw new Error(data.error || "Failed to verify Resend API.");
-            }
-          } catch (err) {
-            if (smtpStatusMsg) {
-              smtpStatusMsg.className = "auth-status-msg error";
-              smtpStatusMsg.textContent = `Error: ${err.message}`;
-              smtpStatusMsg.removeAttribute("hidden");
-            }
-          } finally {
-            testSmtpBtn.disabled = false;
-            testSmtpBtn.innerHTML = `<span>Verify &amp; Send Test Email</span>`;
-          }
-          return;
-        }
-
-        // Gmail SMTP flow
-        if (!user || !pass) {
-          if (smtpStatusMsg) {
-            smtpStatusMsg.className = "auth-status-msg error";
-            smtpStatusMsg.textContent = "Please enter both your Gmail address and 16-letter App Password.";
-            smtpStatusMsg.removeAttribute("hidden");
-          }
-          return;
-        }
-
-        testSmtpBtn.disabled = true;
-        testSmtpBtn.innerHTML = `<span>Connecting to Gmail SMTP &amp; sending...</span>`;
-        if (smtpStatusMsg) smtpStatusMsg.setAttribute("hidden", "true");
-
-        try {
-          const res = await fetch('/api/save-mail-config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider: 'gmail', smtpUser: user, smtpPass: pass })
-          });
-          const data = await res.json();
-          if (data.success) {
-            if (smtpStatusMsg) {
-              smtpStatusMsg.className = "auth-status-msg success";
-              smtpStatusMsg.textContent = `✓ ${data.message}`;
-              smtpStatusMsg.removeAttribute("hidden");
-            }
-            if (mailActiveBadge) {
-              mailActiveBadge.textContent = '📨 Gmail Active';
-              mailActiveBadge.className = 'badge badge-success';
-            }
-            showToast(`✓ Email sender verified! Sent test mail to ${user}`);
-          } else {
-            throw new Error(data.error || "Failed to verify Gmail SMTP.");
-          }
-        } catch (err) {
-          if (smtpStatusMsg) {
-            smtpStatusMsg.className = "auth-status-msg error";
-            smtpStatusMsg.textContent = `Error: ${err.message}`;
-            smtpStatusMsg.removeAttribute("hidden");
-          }
-        } finally {
-          testSmtpBtn.disabled = false;
-          testSmtpBtn.innerHTML = `<span>Verify &amp; Send Test Email</span>`;
-        }
-      });
-    }
 
     // Dismiss settings sidebar on Escape key
     document.addEventListener("keydown", (e) => {
@@ -3610,18 +3470,36 @@ function setupAuthEventListeners() {
     }
   }
 
+  function resetAuthForm() {
+    if (authEmailInput) authEmailInput.value = "";
+    if (authPasswordInput) authPasswordInput.value = "";
+    const authRegNoInput = document.getElementById("auth-regno-input");
+    const authRegNoHint = document.getElementById("auth-regno-hint");
+    if (authRegNoInput) {
+      authRegNoInput.value = "";
+      authRegNoInput.readOnly = false;
+      authRegNoInput.classList.remove("is-locked");
+    }
+    if (authRegNoHint) {
+      authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official university identification number</span>';
+    }
+    if (authStatusMsg) {
+      authStatusMsg.textContent = "";
+      authStatusMsg.setAttribute("hidden", "true");
+    }
+  }
+
   function openAuthModal() {
     showLoginForm();
-    if (authStatusMsg) authStatusMsg.setAttribute("hidden", "true");
-    const isStaffUser = state.currentUser && state.currentUser.role === "staff";
-    setAuthRoleView(isStaffUser ? "staff" : "student", false);
+    resetAuthForm();
+    const isStaffUser = Boolean(state.currentUser && state.currentUser.role === "staff");
     if (authEmailInput) {
-      authEmailInput.value = state.currentUser ? state.currentUser.email : "";
-      if (authEmailInput.value) {
-        checkAndAutofillRegistration(authEmailInput.value);
-      }
+      authEmailInput.value = state.currentUser ? (state.currentUser.email || "") : "";
     }
-    if (authPasswordInput) authPasswordInput.value = "";
+    setAuthRoleView(isStaffUser ? "staff" : "student", false);
+    if (authEmailInput && authEmailInput.value) {
+      checkAndAutofillRegistration(authEmailInput.value);
+    }
     if (authModal) authModal.showModal();
   }
 
@@ -3666,12 +3544,20 @@ function setupAuthEventListeners() {
     if (authRegNoInput) {
       authRegNoInput.placeholder = isStaff ? "Enter your employee ID" : "Enter your registration number";
     }
-    if (authRegNoHint) {
-      authRegNoHint.textContent = isStaff 
-        ? "Official staff or faculty ID number"
-        : "Official university identification number";
+
+    const curEmail = authEmailInput ? authEmailInput.value.trim() : "";
+    if (!curEmail) {
+      if (authRegNoInput) {
+        authRegNoInput.value = "";
+        authRegNoInput.readOnly = false;
+        authRegNoInput.classList.remove("is-locked");
+      }
+      if (authRegNoHint) {
+        authRegNoHint.innerHTML = `<span style="color:var(--text-muted);">${isStaff ? "Official staff or faculty ID number" : "Official university identification number"}</span>`;
+      }
+    } else {
+      checkAndAutofillRegistration(curEmail);
     }
-    checkAndAutofillRegistration(authEmailInput ? authEmailInput.value : "");
   }
 
   if (authTabStudent) {
@@ -3764,11 +3650,17 @@ function setupAuthEventListeners() {
 
   // 2. Close modal
   if (closeAuthModalBtn && authModal) {
-    closeAuthModalBtn.addEventListener("click", () => authModal.close());
+    closeAuthModalBtn.addEventListener("click", () => {
+      resetAuthForm();
+      authModal.close();
+    });
   }
   if (authModal) {
     authModal.addEventListener("click", (e) => {
-      if (e.target === authModal) authModal.close();
+      if (e.target === authModal) {
+        resetAuthForm();
+        authModal.close();
+      }
     });
   }
 
@@ -4025,6 +3917,7 @@ function setupAuthEventListeners() {
 
   function showLoginForm() {
     resetPasswordToggles();
+    resetAuthForm();
     if (authModalTitle) authModalTitle.textContent = "Campus Sign In";
     if (authModalSubtitle) authModalSubtitle.textContent = "Authenticate with your official VIT email";
     if (authRoleSegmented) authRoleSegmented.removeAttribute("hidden");
