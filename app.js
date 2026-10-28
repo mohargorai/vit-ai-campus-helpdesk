@@ -3554,7 +3554,7 @@ function setupAuthEventListeners() {
       authRegNoInput.readOnly = false;
       authRegNoInput.classList.remove("is-locked");
       if (authRegNoHint) {
-        authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official student registration number (e.g. 24BIT0462)</span>';
+        authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official student registration number (e.g. 24BCE1001)</span>';
       }
       return;
     }
@@ -3591,7 +3591,7 @@ function setupAuthEventListeners() {
     authRegNoInput.readOnly = false;
     authRegNoInput.classList.remove("is-locked");
     if (authRegNoHint) {
-      authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official student registration number (e.g. 24BIT0462)</span>';
+      authRegNoHint.innerHTML = '<span style="color:var(--text-muted);">Official student registration number (e.g. 24BCE1001)</span>';
     }
   }
 
@@ -3661,7 +3661,7 @@ function setupAuthEventListeners() {
       authRegNoLabel.textContent = isStaff ? "Staff Employee ID:" : "Student Roll / Registration No:";
     }
     if (authRegNoInput) {
-      authRegNoInput.placeholder = isStaff ? "e.g. EMP-MB102" : "e.g. 24BCE1001 or 24BIT1002";
+      authRegNoInput.placeholder = isStaff ? "e.g. EMP-MB102" : "e.g. 24BCE1001 or 24BCE1002";
     }
     if (isStaff) {
       if (authRegNoInput) {
@@ -3927,7 +3927,7 @@ function setupAuthEventListeners() {
       const cur = state.currentUser ? (state.currentUser.regNo || "") : "";
       if (cur) return;
 
-      const roll = prompt("Enter your official VIT Student Registration Number (e.g. 24BIT0462):", "");
+      const roll = prompt("Enter your official VIT Student Registration Number (e.g. 24BCE1001):", "");
       if (roll !== null) {
         const clean = roll.trim().toUpperCase();
         if (!clean) return;
