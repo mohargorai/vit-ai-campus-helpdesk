@@ -937,6 +937,8 @@ const state = {
   ticketSearchQuery: "",
   testResults: [],
   aiProvider: (localStorage.getItem("vit_ai_provider") === "groq" || localStorage.getItem("vit_ai_provider") === "local") ? localStorage.getItem("vit_ai_provider") : "gemini",
+  geminiApiKey: localStorage.getItem("vit_gemini_api_key") || localStorage.getItem("vit_ai_apikey") || "",
+  groqApiKey: localStorage.getItem("vit_groq_api_key") || "",
   aiApiKey: localStorage.getItem("vit_ai_apikey") || ""
 };
 
@@ -1008,7 +1010,9 @@ const closeAiModalBtn = document.getElementById("close-ai-modal-btn");
 const cancelAiModalBtn = document.getElementById("cancel-ai-modal-btn");
 const aiModelForm = document.getElementById("ai-model-form");
 const selectAiProvider = document.getElementById("select-ai-provider");
-const aiApiKeyInput = document.getElementById("ai-api-key");
+const geminiApiKeyInput = document.getElementById("gemini-api-key") || document.getElementById("ai-api-key");
+const groqApiKeyInput = document.getElementById("groq-api-key");
+const aiApiKeyInput = geminiApiKeyInput;
 const selectTtsVoice = document.getElementById("select-tts-voice");
 const selectMicLang = document.getElementById("select-mic-lang");
 const selectMicDevice = document.getElementById("select-mic-device");
@@ -1645,7 +1649,7 @@ async function handleUserSubmission(queryText) {
             context: "",
             sourceDoc: "VIT Student Support Office Directory",
             provider: state.aiProvider,
-            apiKey: state.aiApiKey
+            apiKey: state.aiProvider === "groq" ? (state.groqApiKey || state.aiApiKey) : (state.geminiApiKey || state.aiApiKey)
           })
         });
         if (response.ok) {
@@ -1683,7 +1687,7 @@ async function handleUserSubmission(queryText) {
           context: result.match.answer,
           sourceDoc: result.match.sourceDoc,
           provider: state.aiProvider,
-          apiKey: state.aiApiKey
+          apiKey: state.aiProvider === "groq" ? (state.groqApiKey || state.aiApiKey) : (state.geminiApiKey || state.aiApiKey)
         })
       });
 
@@ -3074,7 +3078,8 @@ function setupEventListeners() {
     if (!settingsSidebar) return;
     const isAdmin = state.currentUser && state.currentUser.role === "admin";
     if (selectAiProvider) selectAiProvider.value = state.aiProvider;
-    if (aiApiKeyInput) aiApiKeyInput.value = isAdmin ? (state.aiApiKey || "") : "";
+    if (geminiApiKeyInput) geminiApiKeyInput.value = isAdmin ? (state.geminiApiKey || state.aiApiKey || "") : "";
+    if (groqApiKeyInput) groqApiKeyInput.value = isAdmin ? (state.groqApiKey || "") : "";
     if (selectTtsVoice) {
       populateTtsVoiceSelect();
       selectTtsVoice.value = selectedVoicePreference;
@@ -3175,10 +3180,18 @@ function setupEventListeners() {
           updateActiveModelBadge();
         }
 
-        // API Key: strictly configurable by admin only (not even staff)
-        if (isAdmin && aiApiKeyInput) {
-          state.aiApiKey = aiApiKeyInput.value.trim();
-          localStorage.setItem("vit_ai_apikey", state.aiApiKey);
+        // API Keys: strictly configurable by admin only (Gemini & Groq stored simultaneously)
+        if (isAdmin) {
+          if (geminiApiKeyInput) {
+            state.geminiApiKey = geminiApiKeyInput.value.trim();
+            localStorage.setItem("vit_gemini_api_key", state.geminiApiKey);
+            state.aiApiKey = state.geminiApiKey;
+            localStorage.setItem("vit_ai_apikey", state.geminiApiKey);
+          }
+          if (groqApiKeyInput) {
+            state.groqApiKey = groqApiKeyInput.value.trim();
+            localStorage.setItem("vit_groq_api_key", state.groqApiKey);
+          }
         }
 
         if (selectTtsVoice) {

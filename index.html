@@ -228,10 +228,14 @@
             <option value="local">🛡️ Local Campus RAG (Offline)</option>
           </select>
         </div>
-        <!-- Admin-Only Gemini / Groq API Key Configuration (Hidden from Students & Staff) -->
+        <!-- Admin-Only Dedicated API Key Configuration (Hidden from Students & Staff) -->
         <div class="settings-field admin-only" style="margin-top: 8px;">
-          <label class="settings-mini-label" for="ai-api-key">API Key (Gemini or Groq):</label>
-          <input type="password" id="ai-api-key" class="settings-input" placeholder="Enter Gemini (AQ... / AIza...) or Groq (gsk_...) key" />
+          <label class="settings-mini-label" for="gemini-api-key">Google Gemini API Key:</label>
+          <input type="password" id="gemini-api-key" class="settings-input" placeholder="Enter Gemini key (AQ.Ab8... or AIza...)" autocomplete="off" />
+        </div>
+        <div class="settings-field admin-only" style="margin-top: 8px;">
+          <label class="settings-mini-label" for="groq-api-key">Groq Cloud API Key:</label>
+          <input type="password" id="groq-api-key" class="settings-input" placeholder="Enter Groq key (gsk_...)" autocomplete="off" />
         </div>
       </div>
 
