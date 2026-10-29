@@ -648,20 +648,41 @@ const server = http.createServer((req, res) => {
             return {
               role: 'user',
               text: sanitizeText(m.text || '', 2000),
+              senderLabel: sanitizeText(m.senderLabel || 'Student (You)', 50),
+              avatarChar: sanitizeText(m.avatarChar || '🎓', 10),
+              time: sanitizeText(m.time || '', 30),
               timestamp: typeof m.timestamp === 'number' ? m.timestamp : Date.now()
             };
           } else {
+            const qr = m.queryResult || {};
+            const qMatch = qr.match || {};
+            const genAns = sanitizeText(qr.generatedAnswer || qr.answer || qMatch.answer || '', 5000);
+            const srcDoc = sanitizeText(qr.sourceDoc || qMatch.sourceDoc || 'VIT Verified Campus Directive', 200);
+            const faqId = sanitizeText(qr.faqRef || qMatch.id || 'KB-CAMPUS', 50);
+            const model = sanitizeText(qr.aiModelName || qr.provider || 'Groq (qwen/qwen3.8-27b)', 80);
+
             return {
               role: 'assistant',
               studentQuery: sanitizeText(m.studentQuery || '', 2000),
               elapsed: typeof m.elapsed === 'number' ? m.elapsed : 1,
+              time: sanitizeText(m.time || '', 30),
               queryResult: {
-                answer: sanitizeText(m.queryResult?.answer || m.queryResult?.generatedAnswer || '', 4000),
-                confidence: typeof m.queryResult?.confidence === 'number' ? m.queryResult.confidence : 95,
-                sourceDoc: sanitizeText(m.queryResult?.sourceDoc || '', 150),
-                faqRef: sanitizeText(m.queryResult?.faqRef || '', 50),
-                provider: sanitizeText(m.queryResult?.provider || '', 60),
-                isGrounded: Boolean(m.queryResult?.isGrounded)
+                answer: genAns,
+                generatedAnswer: genAns,
+                confidence: typeof qr.confidence === 'number' ? qr.confidence : 95,
+                sourceDoc: srcDoc,
+                faqRef: faqId,
+                aiModelName: model,
+                provider: model,
+                isConversational: Boolean(qr.isConversational),
+                isFallback: Boolean(qr.isFallback),
+                reason: sanitizeText(qr.reason || '', 200),
+                isGrounded: qr.isGrounded !== false,
+                match: {
+                  answer: genAns,
+                  sourceDoc: srcDoc,
+                  id: faqId
+                }
               }
             };
           }

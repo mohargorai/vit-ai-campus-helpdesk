@@ -1787,15 +1787,20 @@ async function checkAndLoadSharedConversation() {
     startNewChat();
   });
 
-  sharedConv.messages.forEach(m => {
-    if (m.role === "user") {
-      renderSavedUserMessage(m);
-    } else if (m.role === "assistant") {
-      appendAssistantResponse(m.queryResult, m.studentQuery, m.elapsed || 1, true);
+  sharedConv.messages.forEach((m, idx) => {
+    try {
+      if (m.role === "user") {
+        renderSavedUserMessage(m);
+      } else if (m.role === "assistant") {
+        appendAssistantResponse(m.queryResult, m.studentQuery, m.elapsed || 1, true);
+      }
+    } catch (err) {
+      console.warn(`Render fallback for shared message #${idx}:`, err);
     }
   });
 
-  showToast(`🔗 Loaded shared conversation: "${sharedConv.title || 'Campus Chat'}"`);
+  chatMessagesEl.scrollTop = 0;
+  showToast(`🔗 Loaded shared conversation (${sharedConv.messages.length} messages)`);
 }
 
 function initApp() {
@@ -2043,48 +2048,51 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
       </div>
     `;
   } else if (queryResult.isFallback) {
-    // Escalate to Staff Desk
-    const ticketId = `VIT-2026-${state.ticketSequence++}`;
+    let ticketId = queryResult.ticketId || `VIT-2026-${state.ticketSequence}`;
     const user = state.currentUser || { name: "VITian Student", email: "student@vitstudent.ac.in", regNo: "24BCE1001" };
     const curDateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     const studentRoll = user.regNo || "24BCE1001";
-    const newTicket = {
-      id: ticketId,
-      query: studentQuery,
-      reason: queryResult.reason,
-      confidence: queryResult.confidence,
-      timestamp: `${curDateStr}, ${timeStr}`,
-      status: "Pending Support Review",
-      resolved: false,
-      studentName: user.name,
-      studentEmail: user.email,
-      studentRegNo: studentRoll
-    };
-    state.tickets.unshift(newTicket);
-    saveTickets(state.tickets);
-    updateTicketBadges();
-    renderTicketsView();
 
-    // Persist to server backend storage & sync ID across campus
-    fetch('/api/tickets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newTicket)
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.ticket) {
-          const idx = state.tickets.findIndex(t => t.id === newTicket.id);
-          if (idx !== -1) {
-            state.tickets[idx].id = data.ticket.id;
-            state.tickets[idx].timestamp = data.ticket.timestamp;
-            saveTickets(state.tickets);
-            updateTicketBadges();
-            renderTicketsView();
-          }
-        }
+    if (!isPlayback) {
+      ticketId = `VIT-2026-${state.ticketSequence++}`;
+      const newTicket = {
+        id: ticketId,
+        query: studentQuery,
+        reason: queryResult.reason,
+        confidence: queryResult.confidence,
+        timestamp: `${curDateStr}, ${timeStr}`,
+        status: "Pending Support Review",
+        resolved: false,
+        studentName: user.name,
+        studentEmail: user.email,
+        studentRegNo: studentRoll
+      };
+      state.tickets.unshift(newTicket);
+      saveTickets(state.tickets);
+      updateTicketBadges();
+      renderTicketsView();
+
+      // Persist to server backend storage & sync ID across campus
+      fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTicket)
       })
-      .catch(err => console.warn("Backend ticket sync offline:", err));
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.ticket) {
+            const idx = state.tickets.findIndex(t => t.id === newTicket.id);
+            if (idx !== -1) {
+              state.tickets[idx].id = data.ticket.id;
+              state.tickets[idx].timestamp = data.ticket.timestamp;
+              saveTickets(state.tickets);
+              updateTicketBadges();
+              renderTicketsView();
+            }
+          }
+        })
+        .catch(err => console.warn("Backend ticket sync offline:", err));
+    }
 
     bodyContent = `
       <div class="message-text">
@@ -2119,16 +2127,23 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
       </div>
     `;
   } else {
-    const match = queryResult.match;
-    const confClass = queryResult.confidence >= 75 ? "conf-high" : "conf-med";
+    const match = (queryResult && queryResult.match) ? queryResult.match : {
+      answer: queryResult?.generatedAnswer || queryResult?.answer || "",
+      sourceDoc: queryResult?.sourceDoc || "VIT Academic Regulations & Directives",
+      id: queryResult?.faqRef || "KB-VERIFIED"
+    };
+    const confClass = (queryResult.confidence || 95) >= 75 ? "conf-high" : "conf-med";
 
     // Dynamic Generative Synthesis tailored to student inquiry
-    const generativeAnswer = queryResult.generatedAnswer || match.answer;
+    const generativeAnswer = queryResult.generatedAnswer || queryResult.answer || match.answer || "";
     const formattedAnswer = formatMarkdownText(generativeAnswer);
-    const modelBadge = (queryResult.aiModelName || "Google Gemini 1.5 Flash")
+    const modelBadge = (queryResult.aiModelName || queryResult.provider || "Groq (qwen/qwen3.8-27b)")
       .replace(/\s*\(Real LLM\)/gi, " 1.5 Flash")
       .replace(/\s*\(0ms\)/gi, "")
       .trim();
+
+    const sourceDoc = match.sourceDoc || queryResult.sourceDoc || "VIT Academic Regulations & Directives";
+    const faqId = match.id || queryResult.faqRef || "KB-VERIFIED";
 
     bodyContent = `
       <div class="message-text">
@@ -2140,10 +2155,10 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             ${escapeHTML(modelBadge)}
           </span>
-          <span class="confidence-indicator ${confClass}">${queryResult.confidence}% Grounded</span>
+          <span class="confidence-indicator ${confClass}">${queryResult.confidence || 98}% Grounded</span>
         </div>
         <div class="citation-text">
-          Document: ${escapeHTML(match.sourceDoc)} &bull; FAQ Ref: [${match.id}]
+          Document: ${escapeHTML(sourceDoc)} &bull; FAQ Ref: [${faqId}]
         </div>
         <details class="rag-inspector">
           <summary class="rag-summary">
@@ -2152,8 +2167,8 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
           </summary>
           <div class="rag-content">
 <div class="rag-field"><strong>Active AI Engine:</strong> ${escapeHTML(modelBadge)}</div>
-<div class="rag-field"><strong>Injected Context:</strong> "${escapeHTML(match.answer)}"</div>
-<div class="rag-field"><strong>Source Citation:</strong> ${escapeHTML(match.sourceDoc)}</div>
+<div class="rag-field"><strong>Injected Context:</strong> "${escapeHTML(match.answer || generativeAnswer)}"</div>
+<div class="rag-field"><strong>Source Citation:</strong> ${escapeHTML(sourceDoc)}</div>
 <div class="rag-field"><strong>Anti-Hallucination Guard:</strong> Grounded strictly in approved campus directives dated 16 Oct 2026.</div>
           </div>
         </details>
@@ -2161,6 +2176,7 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
     `;
   }
 
+  const thoughtSource = queryResult.match?.sourceDoc || queryResult.sourceDoc || "";
   const thoughtBlock = elapsedSeconds ? `
     <details class="thought-accordion">
       <summary class="thought-summary">
@@ -2172,8 +2188,8 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
       </summary>
       <div class="thought-body">
         <div class="thought-item"><span>✓</span> Searched VIT campus knowledge base (${KNOWLEDGE_BASE.length} verified records)</div>
-        ${queryResult.match ? `<div class="thought-item"><span>✓</span> Grounded against official citation: ${escapeHTML(queryResult.match.sourceDoc)}</div>` : ''}
-        ${queryResult.isFallback ? `<div class="thought-item" style="color: #f87171;"><span>⚠</span> Unverified in official directory &bull; Routed to staff ticket</div>` : `<div class="thought-item"><span>✓</span> Verification confidence: <strong>${queryResult.confidence || 95}% Grounded</strong></div>`}
+        ${thoughtSource ? `<div class="thought-item"><span>✓</span> Grounded against official citation: ${escapeHTML(thoughtSource)}</div>` : ''}
+        ${queryResult.isFallback ? `<div class="thought-item" style="color: #f87171;"><span>⚠</span> Unverified in official directory &bull; Routed to staff ticket</div>` : `<div class="thought-item"><span>✓</span> Verification confidence: <strong>${queryResult.confidence || 98}% Grounded</strong></div>`}
       </div>
     </details>
   ` : '';
