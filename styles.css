@@ -49,7 +49,7 @@
   --color-danger-border: rgba(239, 68, 68, 0.22);
 
   /* Layout Constants */
-  --header-height: 64px;
+  --header-height: 0px;
   --sidebar-width: 290px;
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -174,16 +174,67 @@ body:has(#view-chat.active) {
   outline-offset: 2px;
 }
 
-/* Header Component */
+/* Header Component (Removed for Full-Screen Modern Interface) */
 .app-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  height: var(--header-height);
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border-subtle);
+  display: none !important;
+}
+
+/* Floating Top-Left Controls for Sidebar & New Chat */
+.floating-top-controls {
+  position: fixed;
+  top: 18px;
+  left: 20px;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+body:not([data-active-tab="chat"]) .floating-top-controls {
+  display: none !important;
+}
+
+@media (min-width: 1024px) {
+  .floating-top-controls {
+    top: 22px;
+    left: 36px;
+  }
+  body.sidebar-expanded .floating-top-controls {
+    display: none !important;
+  }
+}
+
+.floating-control-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: rgba(18, 20, 26, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.floating-control-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+.floating-control-btn:active {
+  transform: scale(0.95);
+}
+
+.floating-control-btn svg {
+  display: block;
 }
 
 .header-container {
@@ -3078,13 +3129,7 @@ body[data-active-tab="chat"] .view-back-to-chat-btn {
 /* Breakpoint 2: Standard Mobile Phones (<= 768px) */
 @media (max-width: 768px) {
   :root {
-    --header-height: 58px;
-  }
-
-  .app-header {
-    height: 58px;
-    min-height: 58px;
-    padding-top: env(safe-area-inset-top);
+    --header-height: 0px;
   }
 
   .header-container {
@@ -3345,12 +3390,7 @@ body[data-active-tab="chat"] .view-back-to-chat-btn {
 /* Breakpoint 3: Extra Compact Mobile Phones (<= 480px, down to 320px) */
 @media (max-width: 480px) {
   :root {
-    --header-height: 52px;
-  }
-
-  .app-header {
-    height: 52px;
-    min-height: 52px;
+    --header-height: 0px;
   }
 
   .header-container {
@@ -4413,17 +4453,11 @@ body[data-user-role="admin"] .student-only {
 
 /* Desktop layout shifting when sidebar is expanded */
 @media (min-width: 1024px) {
-  body.sidebar-expanded .app-header {
-    margin-left: 270px;
-    width: calc(100% - 270px);
-  }
-
   body.sidebar-expanded .main-layout {
     margin-left: 270px;
     width: calc(100% - 270px);
   }
 
-  .app-header,
   .main-layout {
     transition: margin-left 0.24s cubic-bezier(0.16, 1, 0.3, 1), width 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
