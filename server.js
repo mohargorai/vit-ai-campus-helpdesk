@@ -73,6 +73,26 @@ function saveMailConfig(cfg) {
 const DATA_DIR = path.join(__dirname, 'data');
 const TICKETS_FILE = path.join(DATA_DIR, 'tickets.json');
 const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
+const SHARED_CHATS_FILE = path.join(DATA_DIR, 'shared_chats.json');
+
+function getSharedChats() {
+  try {
+    if (fs.existsSync(SHARED_CHATS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SHARED_CHATS_FILE, 'utf8'));
+      if (typeof data === 'object' && data !== null) return data;
+    }
+  } catch (e) {}
+  return {};
+}
+
+function saveSharedChats(chats) {
+  try {
+    fs.writeFileSync(SHARED_CHATS_FILE, JSON.stringify(chats, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -595,6 +615,105 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ success: false, error: err.message }));
       }
     });
+    return;
+  }
+
+  // POST /api/share (Store snapshot and generate public shareable link)
+  if (req.method === 'POST' && urlPath === '/api/share') {
+    let body = '';
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 512 * 1024) {
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Conversation too large to share' }));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (tooLarge) return;
+      try {
+        const payload = parseSafeJson(body) || {};
+        const title = sanitizeText(payload.title || 'Campus Inquiry', 120);
+        const rawMessages = Array.isArray(payload.messages) ? payload.messages.slice(0, 60) : [];
+        if (rawMessages.length === 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Cannot share an empty conversation' }));
+          return;
+        }
+
+        const safeMessages = rawMessages.map(m => {
+          if (m.role === 'user') {
+            return {
+              role: 'user',
+              text: sanitizeText(m.text || '', 2000),
+              timestamp: typeof m.timestamp === 'number' ? m.timestamp : Date.now()
+            };
+          } else {
+            return {
+              role: 'assistant',
+              studentQuery: sanitizeText(m.studentQuery || '', 2000),
+              elapsed: typeof m.elapsed === 'number' ? m.elapsed : 1,
+              queryResult: {
+                answer: sanitizeText(m.queryResult?.answer || m.queryResult?.generatedAnswer || '', 4000),
+                confidence: typeof m.queryResult?.confidence === 'number' ? m.queryResult.confidence : 95,
+                sourceDoc: sanitizeText(m.queryResult?.sourceDoc || '', 150),
+                faqRef: sanitizeText(m.queryResult?.faqRef || '', 50),
+                provider: sanitizeText(m.queryResult?.provider || '', 60),
+                isGrounded: Boolean(m.queryResult?.isGrounded)
+              }
+            };
+          }
+        });
+
+        const shareId = 'sh_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+        const chats = getSharedChats();
+        chats[shareId] = {
+          id: shareId,
+          title,
+          createdAt: Date.now(),
+          messages: safeMessages
+        };
+
+        // Prune older than 500 entries to maintain high performance
+        const keys = Object.keys(chats);
+        if (keys.length > 500) {
+          keys.slice(0, keys.length - 500).forEach(k => delete chats[k]);
+        }
+        saveSharedChats(chats);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          shareId,
+          sharePath: `/?share=${shareId}`
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Could not generate share link' }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/share?id=sh_... (Retrieve shared conversation)
+  if (req.method === 'GET' && urlPath === '/api/share') {
+    const shareId = sanitizeText(parsedUrl.searchParams.get('id') || '', 40);
+    if (!shareId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Share ID is required' }));
+      return;
+    }
+    const chats = getSharedChats();
+    const chat = chats[shareId];
+    if (!chat) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Shared conversation not found or expired' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
+    res.end(JSON.stringify({ success: true, conversation: chat }));
     return;
   }
 

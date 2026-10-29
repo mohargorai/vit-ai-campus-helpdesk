@@ -1256,12 +1256,17 @@ function closeHistoryContextMenu() {
   document.querySelectorAll(".history-item.menu-open").forEach(el => el.classList.remove("menu-open"));
 }
 
-function shareConversation(id) {
+let activeShareTranscript = "";
+let activeShareUrl = "";
+
+async function shareConversation(id) {
   const conv = getConversations().find(c => c.id === id);
   if (!conv || !conv.messages || conv.messages.length === 0) {
     showToast("Nothing to share in this conversation yet.");
     return;
   }
+
+  // 1. Prepare plain-text transcript
   let transcript = `--- VIT AI Campus Helpdesk ---\nConversation: ${conv.title}\nDate: ${new Date(conv.createdAt).toLocaleDateString()}\n\n`;
   conv.messages.forEach(m => {
     if (m.role === "user") {
@@ -1271,13 +1276,97 @@ function shareConversation(id) {
       transcript += `Helpdesk: ${ans.replace(/<[^>]*>/g, '')}\n\n`;
     }
   });
+  activeShareTranscript = transcript;
 
+  // 2. Open Share Modal and show initial preview state
+  const shareModal = document.getElementById("share-modal");
+  const previewTitle = document.getElementById("share-preview-title");
+  const previewMeta = document.getElementById("share-preview-meta");
+  const linkInput = document.getElementById("share-link-input");
+  const copyBtnText = document.getElementById("share-copy-btn-text");
+  const statusIndicator = document.getElementById("share-status-indicator");
+
+  if (previewTitle) previewTitle.textContent = conv.title || "Campus Inquiry";
+  if (previewMeta) {
+    const msgCount = conv.messages.length;
+    previewMeta.textContent = `${msgCount} message${msgCount === 1 ? '' : 's'} • ${new Date(conv.createdAt).toLocaleDateString()}`;
+  }
+  if (linkInput) {
+    linkInput.value = "Generating shareable link...";
+  }
+  if (copyBtnText) copyBtnText.textContent = "Copy Link";
+  if (statusIndicator) {
+    statusIndicator.setAttribute("hidden", "true");
+    statusIndicator.textContent = "";
+  }
+
+  if (shareModal) {
+    shareModal.showModal();
+  }
+
+  // 3. Request server to create a shareable snapshot
+  let fullShareUrl = "";
+  try {
+    const res = await fetch("/api/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: conv.title,
+        messages: conv.messages
+      })
+    });
+    const data = await res.json();
+    if (data.success && (data.sharePath || data.shareId)) {
+      fullShareUrl = `${window.location.origin}${data.sharePath || ('/?share=' + data.shareId)}`;
+    }
+  } catch (_) { }
+
+  // Fallback: If offline or API failed, encode in URL hash so share link still works 100%
+  if (!fullShareUrl) {
+    try {
+      const compactPayload = {
+        t: conv.title,
+        d: conv.createdAt,
+        m: conv.messages.map(m => ({
+          r: m.role,
+          x: m.text || "",
+          a: m.queryResult?.generatedAnswer || m.queryResult?.answer || "",
+          s: m.queryResult?.sourceDoc || "",
+          c: m.queryResult?.confidence || 95
+        }))
+      };
+      const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(compactPayload)))));
+      fullShareUrl = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
+    } catch (_) {
+      fullShareUrl = window.location.href;
+    }
+  }
+
+  activeShareUrl = fullShareUrl;
+  if (linkInput) {
+    linkInput.value = fullShareUrl;
+    linkInput.focus();
+    linkInput.select();
+  }
+
+  // 4. Automatically copy the generated link to clipboard
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(transcript)
-      .then(() => showToast("✓ Conversation copied to clipboard!"))
-      .catch(() => showToast("Copied to clipboard."));
+    navigator.clipboard.writeText(fullShareUrl).then(() => {
+      if (copyBtnText) copyBtnText.textContent = "✓ Link Copied!";
+      if (statusIndicator) {
+        statusIndicator.textContent = "✓ Shareable link generated & copied to clipboard!";
+        statusIndicator.removeAttribute("hidden");
+      }
+      showToast("✓ Share link copied to clipboard!");
+    }).catch(() => {
+      if (statusIndicator) {
+        statusIndicator.textContent = "✓ Shareable link generated. Click 'Copy Link' to copy.";
+        statusIndicator.removeAttribute("hidden");
+      }
+      showToast("Shareable link ready.");
+    });
   } else {
-    showToast("Conversation ready to share.");
+    showToast("Shareable link ready.");
   }
 }
 
@@ -1575,8 +1664,14 @@ function updateActiveModelBadge() {
 let toastTimer = null;
 
 function showToast(rawMessage, actionLabel = null, onAction = null) {
-  // Silent: Intrusive floating popups permanently removed in favor of contextual, in-place UI feedback
-  return;
+  if (!liveToast || !toastMessage) return;
+  toastMessage.textContent = rawMessage;
+  liveToast.removeAttribute("hidden");
+  liveToast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    hideToast();
+  }, 2600);
 }
 
 function hideToast() {
@@ -1613,6 +1708,96 @@ function updateKnowledgeBaseCounts() {
   });
 }
 
+async function checkAndLoadSharedConversation() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const shareId = urlParams.get("share");
+  const hash = window.location.hash || "";
+
+  let sharedConv = null;
+
+  if (shareId) {
+    try {
+      const res = await fetch(`/api/share?id=${encodeURIComponent(shareId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.conversation) {
+          sharedConv = data.conversation;
+        }
+      }
+    } catch (_) { }
+  } else if (hash.includes("share=")) {
+    try {
+      const encoded = hash.split("share=")[1];
+      if (encoded) {
+        const decodedStr = decodeURIComponent(escape(atob(decodeURIComponent(encoded))));
+        const parsed = JSON.parse(decodedStr);
+        if (parsed && Array.isArray(parsed.m)) {
+          sharedConv = {
+            title: parsed.t || "Shared Campus Chat",
+            createdAt: parsed.d || Date.now(),
+            messages: parsed.m.map(item => {
+              if (item.r === "user") {
+                return { role: "user", text: item.x };
+              } else {
+                return {
+                  role: "assistant",
+                  studentQuery: item.x || "",
+                  queryResult: {
+                    answer: item.a || "",
+                    sourceDoc: item.s || "VIT Knowledge Base",
+                    confidence: item.c || 95,
+                    isGrounded: true
+                  }
+                };
+              }
+            })
+          };
+        }
+      }
+    } catch (_) { }
+  }
+
+  if (!sharedConv || !Array.isArray(sharedConv.messages) || sharedConv.messages.length === 0) {
+    return;
+  }
+
+  switchTab("chat");
+
+  const chatMessagesEl = document.getElementById("chat-messages");
+  const chatContainer = document.getElementById("chat-container") || document.querySelector(".chat-container");
+  if (!chatMessagesEl) return;
+
+  chatMessagesEl.innerHTML = "";
+  if (chatContainer) chatContainer.classList.remove("empty-chat");
+
+  const banner = document.createElement("div");
+  banner.className = "shared-chat-banner";
+  banner.innerHTML = `
+    <div class="shared-banner-text">
+      <span class="shared-banner-icon">🔗</span>
+      <span>Viewing shared chat: <strong>${escapeHTML(sharedConv.title || 'Campus Inquiry')}</strong></span>
+    </div>
+    <button type="button" class="btn-secondary" id="exit-shared-chat-btn">Start New Chat</button>
+  `;
+  chatMessagesEl.appendChild(banner);
+
+  document.getElementById("exit-shared-chat-btn")?.addEventListener("click", () => {
+    const cleanUrl = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+    startNewChat();
+  });
+
+  sharedConv.messages.forEach(m => {
+    if (m.role === "user") {
+      renderSavedUserMessage(m);
+    } else if (m.role === "assistant") {
+      appendAssistantResponse(m.queryResult, m.studentQuery, m.elapsed || 1, true);
+    }
+  });
+
+  showToast(`🔗 Loaded shared conversation: "${sharedConv.title || 'Campus Chat'}"`);
+}
+
 function initApp() {
   // Purge any legacy dummy accounts & dummy tickets from localStorage for clean public deployment
   try {
@@ -1642,6 +1827,7 @@ function initApp() {
   setupAuthEventListeners();
   setupTicketFilterListeners();
   updateSendButtonState();
+  checkAndLoadSharedConversation();
 
   // Instant server sync & multi-device background polling (every 10s)
   syncTicketsFromServer();
@@ -3587,6 +3773,60 @@ function setupEventListeners() {
   if (staffReplyModal) {
     staffReplyModal.addEventListener("click", (e) => {
       if (e.target === staffReplyModal) staffReplyModal.close();
+    });
+  }
+
+  // Share Conversation Modal Event Listeners
+  const shareModal = document.getElementById("share-modal");
+  const closeShareModalBtn = document.getElementById("close-share-modal-btn");
+  const shareCopyLinkBtn = document.getElementById("share-copy-link-btn");
+  const shareCopyTextBtn = document.getElementById("share-copy-text-btn");
+  const shareLinkInput = document.getElementById("share-link-input");
+  const shareCopyBtnText = document.getElementById("share-copy-btn-text");
+  const shareStatusIndicator = document.getElementById("share-status-indicator");
+
+  if (closeShareModalBtn && shareModal) {
+    closeShareModalBtn.addEventListener("click", () => shareModal.close());
+  }
+
+  if (shareModal) {
+    shareModal.addEventListener("click", (e) => {
+      if (e.target === shareModal) shareModal.close();
+    });
+  }
+
+  if (shareCopyLinkBtn) {
+    shareCopyLinkBtn.addEventListener("click", () => {
+      const urlToCopy = activeShareUrl || (shareLinkInput ? shareLinkInput.value : "");
+      if (!urlToCopy) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(urlToCopy).then(() => {
+          if (shareCopyBtnText) shareCopyBtnText.textContent = "✓ Copied!";
+          if (shareStatusIndicator) {
+            shareStatusIndicator.textContent = "✓ Shareable link copied to clipboard!";
+            shareStatusIndicator.removeAttribute("hidden");
+          }
+          showToast("✓ Shareable link copied to clipboard!");
+          setTimeout(() => {
+            if (shareCopyBtnText) shareCopyBtnText.textContent = "Copy Link";
+          }, 2000);
+        });
+      }
+    });
+  }
+
+  if (shareCopyTextBtn) {
+    shareCopyTextBtn.addEventListener("click", () => {
+      if (!activeShareTranscript) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(activeShareTranscript).then(() => {
+          if (shareStatusIndicator) {
+            shareStatusIndicator.textContent = "✓ Full plain-text transcript copied to clipboard!";
+            shareStatusIndicator.removeAttribute("hidden");
+          }
+          showToast("✓ Full transcript copied to clipboard!");
+        });
+      }
     });
   }
 

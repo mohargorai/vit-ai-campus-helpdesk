@@ -6,6 +6,7 @@ Thumbs.db
 data/*.tmp.*
 data/accounts.json
 data/tickets.json
+data/shared_chats.json
 .env
 .env.local
 mail_config.json

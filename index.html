@@ -777,6 +777,49 @@
     </div>
   </dialog>
 
+  <!-- Public Share Conversation Dialog -->
+  <dialog id="share-modal" class="ticket-dialog share-dialog" aria-labelledby="share-modal-title">
+    <div class="dialog-card share-card">
+      <div class="dialog-header">
+        <div class="brand-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399;" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        </div>
+        <div>
+          <h3 id="share-modal-title" class="dialog-title">Share Public Link to Chat</h3>
+          <span class="dialog-subtitle">Anyone with this link can view this campus Q&amp;A</span>
+        </div>
+        <button id="close-share-modal-btn" class="close-btn" type="button" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="dialog-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="share-chat-preview">
+          <span id="share-preview-title" class="share-preview-title">Conversation Title</span>
+          <span id="share-preview-meta" class="share-preview-meta">2 messages • Campus Inquiry</span>
+        </div>
+
+        <div class="dialog-field">
+          <label for="share-link-input" class="field-label">Shareable Link:</label>
+          <div class="share-input-row">
+            <input type="text" id="share-link-input" class="settings-input" readonly placeholder="Generating share link..." />
+            <button type="button" id="share-copy-link-btn" class="btn-primary share-copy-btn" title="Copy public link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              <span id="share-copy-btn-text">Copy Link</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="share-status-indicator" class="share-status-indicator" hidden></div>
+
+        <div class="share-secondary-actions">
+          <button type="button" id="share-copy-text-btn" class="btn-ghost share-transcript-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>Copy Full Text Transcript</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Minimalist College Authentication Dialog -->
   <dialog id="auth-modal" class="ticket-dialog auth-dialog" aria-labelledby="auth-modal-title">
     <div class="dialog-card auth-card">
@@ -884,9 +927,9 @@
     </div>
   </dialog>
 
-  <!-- Inert toast container (floating popups decommissioned; UI feedback is 100% in-place) -->
-  <div id="live-toast" class="live-toast" hidden style="display: none !important;">
-    <span id="toast-message" style="display: none;"></span>
+  <!-- Sleek Floating Notification Pill -->
+  <div id="live-toast" class="live-toast" role="status" aria-live="polite" hidden>
+    <span id="toast-message"></span>
   </div>
 
   <script src="app.js?v=74"></script>
