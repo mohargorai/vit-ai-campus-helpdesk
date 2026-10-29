@@ -697,6 +697,7 @@ body[data-active-tab="chat"] .view-back-to-chat-btn {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .badge-success {
@@ -3917,13 +3918,18 @@ body[data-active-tab="chat"] .view-back-to-chat-btn {
 .account-user-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
 }
 
 .account-user-meta .badge {
-  font-size: 10px;
-  padding: 2px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2.5px 7px;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  line-height: 1.25;
 }
 
 .account-user-meta .badge-role {
@@ -4774,10 +4780,12 @@ body[data-user-role="admin"] .student-only {
   position: absolute !important;
   bottom: calc(100% + 8px) !important;
   top: auto !important;
-  left: 8px !important;
-  right: 8px !important;
-  width: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  min-width: 250px !important;
   max-width: none !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
   animation: slideUpFade 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 

@@ -4148,9 +4148,16 @@ function updateUserProfileUI() {
   const userChevronIcon = document.querySelector(".user-chevron-icon");
 
   if (isLoggedIn) {
-    if (userDisplayName) userDisplayName.textContent = user.name;
+    if (userDisplayName) {
+      let displayName = user.name;
+      if (isStaff && (displayName === "Desk MB-102 Staff Officer" || displayName.includes("Desk MB-102"))) {
+        displayName = "MB-102 Staff Desk";
+      }
+      userDisplayName.textContent = displayName;
+      userDisplayName.title = user.name;
+    }
     if (userRoleTag) {
-      userRoleTag.textContent = isAdmin ? "Admin Root" : (isStaff ? "Staff MB-102" : "Student");
+      userRoleTag.textContent = isAdmin ? "Admin" : (isStaff ? "Staff Desk" : "Student");
       userRoleTag.style.display = "inline-block";
     }
     if (userAvatarIcon) userAvatarIcon.textContent = isAdmin ? "🛡️" : (isStaff ? "👨‍💼" : "🎓");
@@ -4188,14 +4195,27 @@ function updateAccountDropdownUI() {
   const dropdownUserEmail = document.getElementById("dropdown-user-email");
   const dropdownRegBadge = document.getElementById("dropdown-reg-badge");
   const dropdownRoleBadge = document.getElementById("dropdown-role-badge");
+  const accountInquiriesLabel = document.getElementById("account-inquiries-label");
 
   if (dropdownAvatar) dropdownAvatar.textContent = isAdmin ? "🛡️" : (isStaff ? "👨‍💼" : "🎓");
-  if (dropdownUserName) dropdownUserName.textContent = user.name;
+
+  let displayName = user.name || "User";
+  if (isStaff && (displayName === "Desk MB-102 Staff Officer" || displayName.includes("Desk MB-102"))) {
+    displayName = "MB-102 Staff Desk";
+  }
+  if (dropdownUserName) {
+    dropdownUserName.textContent = displayName;
+    dropdownUserName.title = user.name;
+  }
   if (dropdownUserEmail) dropdownUserEmail.textContent = user.email;
   if (dropdownRegBadge) dropdownRegBadge.textContent = user.regNo || (isAdmin ? "ADM-ROOT" : (isStaff ? "EMP-MB102" : "Not Set"));
   if (dropdownRoleBadge) {
-    dropdownRoleBadge.textContent = isAdmin ? "Admin Root" : (isStaff ? "Staff MB-102" : "Student");
+    dropdownRoleBadge.textContent = isAdmin ? "Admin" : (isStaff ? "Staff Desk" : "Student");
     dropdownRoleBadge.className = isAdmin ? "badge badge-role admin" : (isStaff ? "badge badge-role staff" : "badge badge-role");
+  }
+
+  if (accountInquiriesLabel) {
+    accountInquiriesLabel.textContent = (isStaff || isAdmin) ? "Support Escalation Queue" : "My Escalated Queries";
   }
 
   const btnEditRoll = document.getElementById("btn-edit-roll");
