@@ -15,7 +15,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
   <link rel="alternate icon" href="favicon.ico?v=2">
   <link rel="apple-touch-icon" href="favicon.png?v=2">
-  <link rel="stylesheet" href="styles.css?v=66">
+  <link rel="stylesheet" href="styles.css?v=82">
 </head>
 
 <body data-active-tab="chat">
@@ -54,11 +54,13 @@
           </svg>
           <span class="history-title">Chat History</span>
         </div>
-        <button id="close-history-sidebar-btn" class="history-close-btn" type="button" aria-label="Close Chat History"
+        <button id="close-history-sidebar-btn" class="history-close-btn" type="button" aria-label="Collapse Chat History"
           title="Collapse sidebar">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M18 6 6 18M6 6l12 12" />
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+            <line x1="9" x2="9" y1="3" y2="21" />
+            <path d="m14 9-3 3 3 3" />
           </svg>
         </button>
       </div>
@@ -214,8 +216,6 @@
       <span>Delete</span>
     </button>
   </div>
-  </div>
-  </header>
 
   <!-- Settings Sidebar Backdrop Overlay -->
   <div id="settings-backdrop" class="settings-backdrop" aria-hidden="true"></div>
@@ -430,66 +430,10 @@
 
         <!-- Docked Input & Prompt Container -->
         <div class="chat-bottom-dock" id="chat-bottom-dock">
-          <!-- Quick Prompt Suggestions Carousel -->
-          <div class="prompt-chips-bar" id="prompt-chips-bar" aria-label="Frequently asked questions suggestions">
-            <span class="chips-label">Try asking:</span>
-            <div class="chips-scroll-wrapper">
-              <button id="chips-scroll-left" class="chips-nav-btn chips-nav-left" type="button"
-                aria-label="Scroll suggestions left" title="Scroll left" disabled>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-              </button>
-              <div class="chips-list" id="chips-list" role="region" aria-label="Quick questions carousel" tabindex="0">
-                <button class="chip-btn" type="button" data-query="Where is room SJT 412 located?">📍 Where is SJT
-                  412?</button>
-                <button class="chip-btn" type="button"
-                  data-query="What is the minimum attendance requirement and the 9-Pointer exemption rule?">📋 9-Pointer
-                  attendance rule</button>
-                <button class="chip-btn" type="button" data-query="What are the computing lab timings on Saturday?">💻
-                  Saturday lab timings</button>
-                <button class="chip-btn" type="button" data-query="How do I apply for weekend hostel night leave?">🏠
-                  Weekend hostel leave</button>
-                <button class="chip-btn" type="button"
-                  data-query="What is the anti-ragging policy and how do I contact the emergency helpline?">🛡️
-                  Anti-ragging helpline</button>
-                <button class="chip-btn" type="button"
-                  data-query="What are the CDC placement eligibility rules and dream company offer policies?">🎓 CDC
-                  Placements</button>
-                <button class="chip-btn" type="button"
-                  data-query="How does relative grading work and what is the pass mark?">⚖️ Relative grading</button>
-                <button class="chip-btn" type="button"
-                  data-query="Where is the campus Health Centre and what are emergency medical numbers?">🏥 Health
-                  Centre</button>
-                <button class="chip-btn" type="button"
-                  data-query="Where is the Maker Space FabLab located and what are the equipment rules?">💡 Maker Space
-                  FabLab</button>
-              </div>
-              <button id="chips-scroll-right" class="chips-nav-btn chips-nav-right" type="button"
-                aria-label="Scroll suggestions right" title="Scroll right">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
           <!-- Message Input Form (Google Gemini Capsule Exact Match) -->
           <form class="chat-form" id="chat-form" autocomplete="off">
             <label for="chat-input" class="visually-hidden">Ask VIT Campus AI Helpdesk</label>
             <div class="input-wrapper gemini-capsule-pill" id="input-capsule">
-              <!-- Left '+' Button -->
-              <button id="add-action-btn" class="gemini-icon-btn" type="button" aria-label="Campus shortcuts & actions"
-                title="Campus shortcuts">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-
               <!-- Text Input -->
               <input type="text" id="chat-input" class="gemini-input-field"
                 placeholder="Ask VIT Campus AI Helpdesk... (or speak with mic)" name="query" autocomplete="off"
@@ -534,57 +478,6 @@
                 </button>
               </div>
 
-              <!-- Quick Action Dropdown Popover (triggered by '+' button) -->
-              <div id="quick-action-menu" class="quick-action-menu" hidden>
-                <div class="quick-menu-header">Quick Campus Actions</div>
-                <button type="button" class="quick-menu-item" data-action="locate-classroom">
-                  <span class="menu-icon">📍</span>
-                  <div class="menu-text">
-                    <strong>Locate Classroom (SJT / TT / MB / PRP)</strong>
-                    <span>Inserts prompt to specify your room (e.g. SJT 201, TT 419)</span>
-                  </div>
-                </button>
-                <button type="button" class="quick-menu-item"
-                  data-query="What are the computing lab timings and 24/7 Maker Space FabLab access rules?">
-                  <span class="menu-icon">💻</span>
-                  <div class="menu-text">
-                    <strong>Computing Labs &amp; 24/7 FabLab Access</strong>
-                    <span>SJT/TT lab timings &amp; Maker Space 3D printer access rules</span>
-                  </div>
-                </button>
-                <button type="button" class="quick-menu-item"
-                  data-query="How do I register for Gravitas 2026 hackathons and get OD leave approved?">
-                  <span class="menu-icon">🎟️</span>
-                  <div class="menu-text">
-                    <strong>Gravitas 2026 &amp; Riviera Registration</strong>
-                    <span>Event registration portal and On-Duty (OD) approval steps</span>
-                  </div>
-                </button>
-                <button type="button" class="quick-menu-item"
-                  data-query="How do I apply for weekend hostel night leave and what are biometric curfew timings?">
-                  <span class="menu-icon">🏠</span>
-                  <div class="menu-text">
-                    <strong>Weekend Hostel Night Leave &amp; Curfew</strong>
-                    <span>VTOP application deadline and biometric gate cutoff</span>
-                  </div>
-                </button>
-                <button type="button" class="quick-menu-item"
-                  data-query="What is the anti-ragging policy and how do I contact the emergency helpline?">
-                  <span class="menu-icon">🛡️</span>
-                  <div class="menu-text">
-                    <strong>Emergency Helplines &amp; Health Centre</strong>
-                    <span>24/7 ambulance, security control &amp; anti-ragging numbers</span>
-                  </div>
-                </button>
-                <button type="button" class="quick-menu-item" data-action="open-tickets">
-                  <span class="menu-icon">👨‍💼</span>
-                  <div class="menu-text">
-                    <strong>Contact MB-102 Staff / View Tickets</strong>
-                    <span>Open escalation queue for direct Student Support Desk review</span>
-                  </div>
-                </button>
-              </div>
-
               <!-- Gemini Model Selection Popover -->
               <div id="gemini-model-menu" class="gemini-model-dropdown" hidden>
                 <div class="model-menu-header">Select AI Model</div>
@@ -625,9 +518,18 @@
               </div>
             </div>
 
+            <!-- Quick Prompt Suggestions (Sleek Single Row) -->
+            <div class="prompt-chips-bar" id="prompt-chips-bar" aria-label="Frequently asked questions suggestions">
+              <div class="chips-list" id="chips-list" role="region" aria-label="Quick questions suggestions">
+                <button class="chip-btn" type="button" data-query="Where is room SJT 412 located?">📍 Where is SJT 412?</button>
+                <button class="chip-btn" type="button" data-query="What is the minimum attendance requirement and the 9-Pointer exemption rule?">📋 9-Pointer attendance rule</button>
+                <button class="chip-btn" type="button" data-query="How do I apply for weekend hostel night leave?">🏠 Weekend hostel leave</button>
+                <button class="chip-btn" type="button" data-query="What are the computing lab timings on Saturday?">💻 Saturday lab timings</button>
+              </div>
+            </div>
+
             <div class="form-footer-meta">
-              <span>Powered by Verified VIT Knowledge Base (Oct 2026)</span>
-              <span class="threshold-pill">Fallback Threshold: &lt;&nbsp;45% &bull; Auto-routes to Staff</span>
+              <span>VIT Campus AI Helpdesk &bull; Verified Campus Guidance (2026)</span>
             </div>
           </form>
         </div>

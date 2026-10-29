@@ -951,6 +951,7 @@ const state = {
   activeTab: "chat",
   activeConversationId: null,
   currentUser: null,
+  ticketSequence: getNextTicketSequence(savedInitialTickets),
   tickets: savedInitialTickets,
   ticketFilter: "active", // "active", "mysolved", "resolved"
   ticketSearchQuery: "",
@@ -1194,7 +1195,9 @@ function openHistorySidebar() {
     document.body.classList.add("sidebar-expanded");
   }
   localStorage.setItem("vit_sidebar_open", "true");
-  renderChatHistoryList();
+  requestAnimationFrame(() => {
+    renderChatHistoryList();
+  });
 }
 
 function closeHistorySidebar() {
@@ -1570,8 +1573,6 @@ const geminiModelText = document.getElementById("gemini-model-text");
 const geminiModelMenu = document.getElementById("gemini-model-menu");
 const openAdvancedAiSettings = document.getElementById("open-advanced-ai-settings");
 const geminiStartHeading = document.getElementById("gemini-start-heading");
-const addActionBtn = document.getElementById("add-action-btn");
-const quickActionMenu = document.getElementById("quick-action-menu");
 const chipsList = document.getElementById("chips-list");
 
 let isMicListening = false;
@@ -1925,7 +1926,16 @@ function getTimeBasedCampusGreeting() {
   }
 }
 
+function getCampusTimeOfDay() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 17) return "afternoon";
+  if (hour >= 17 && hour < 22) return "evening";
+  return "night";
+}
+
 function updateHeroGreeting() {
+  document.body.dataset.campusTime = getCampusTimeOfDay();
   const headingEl = document.getElementById("gemini-start-heading");
   const subEl = document.getElementById("gemini-start-subtitle");
   const badgeTextEl = document.getElementById("hero-badge-text");
@@ -2312,6 +2322,56 @@ function removeTypingIndicator(row) {
   }
 }
 
+// Multi-Turn Context & Confirmation Resolvers
+function getLastConversationContext() {
+  const list = getConversations();
+  const conv = list.find(c => c.id === state.activeConversationId);
+  if (!conv || !conv.messages || conv.messages.length === 0) return null;
+
+  let lastAssistant = null;
+  let lastUser = null;
+  const recentHistory = [];
+
+  const msgs = conv.messages.slice(-6);
+  for (const m of msgs) {
+    if (m.role === 'user') {
+      recentHistory.push({ role: 'user', content: m.text });
+      lastUser = m.text;
+    } else if (m.role === 'assistant') {
+      const text = m.queryResult?.generatedAnswer || m.queryResult?.answer || (m.queryResult?.match?.answer) || "";
+      if (text) {
+        recentHistory.push({ role: 'assistant', content: text });
+        lastAssistant = m;
+      }
+    }
+  }
+
+  return {
+    lastAssistant,
+    lastUser,
+    recentHistory,
+    match: lastAssistant?.queryResult?.match || null,
+    sourceDoc: lastAssistant?.queryResult?.match?.sourceDoc || null
+  };
+}
+
+function isConfirmationOrFollowUpQuery(query) {
+  const q = (query || "").trim().toLowerCase().replace(/[.,!?;:]+/g, " ").trim();
+
+  // 1. Direct confirmation / verification questioning:
+  // "you sure", "are you sure", "really", "is that true", "is this correct", "can you verify", "confirm that", "why", "how come"
+  if (/^(you\s+sure|are\s+you\s+sure|r\s+u\s+sure|sure\s+about\s+that|really|really\s*\??|is\s+that\s+(true|correct|accurate|verified|so|right)|is\s+this\s+(true|correct|accurate|verified|so|right)|can\s+you\s+(verify|confirm)|confirm\s+(that|this)|are\s+you\s+certain|how\s+do\s+you\s+know|prove\s+it|why\s+so|how\s+come)\b/i.test(q)) {
+    return "confirmation";
+  }
+
+  // 2. Pronoun follow-ups (e.g. "what about that?", "how do I reach there?", "tell me more about it")
+  if (/\b(that|this|it|there|them|those|these)\b/i.test(q) && q.split(/\s+/).length <= 10) {
+    return "followup";
+  }
+
+  return null;
+}
+
 async function handleUserSubmission(queryText) {
   // Sanitize user query: strip HTML tags and restrict length to prevent injection/overflow
   const trimmed = (queryText || "").replace(/<[^>]*>/g, "").trim().slice(0, 1000);
@@ -2332,7 +2392,38 @@ async function handleUserSubmission(queryText) {
   // Show live generative thinking animation
   const typingRow = appendTypingIndicator();
 
-  const result = searchKnowledgeBase(trimmed);
+  const lastCtx = getLastConversationContext();
+  const followUpIntent = isConfirmationOrFollowUpQuery(trimmed);
+
+  let result = searchKnowledgeBase(trimmed);
+
+  // Multi-Turn Context & Confirmation Resolver:
+  // If query didn't match directly, but the student is verifying or following up on the active discussion:
+  if (result.isFallback && lastCtx && lastCtx.match) {
+    if (followUpIntent === "confirmation") {
+      result = {
+        match: lastCtx.match,
+        confidence: 98,
+        isFallback: false,
+        isConfirmation: true,
+        answer: `Yes, absolutely. According to verified campus policy ${lastCtx.match.sourceDoc || "VIT Student Handbook"} (${lastCtx.match.id || "Verified FAQ"}): ${lastCtx.match.answer}`
+      };
+    } else if (followUpIntent === "followup") {
+      const expandedQuery = `${lastCtx.match.question || lastCtx.lastUser || ""} ${trimmed}`;
+      const expandedResult = searchKnowledgeBase(expandedQuery);
+      if (!expandedResult.isFallback) {
+        result = expandedResult;
+      } else {
+        result = {
+          match: lastCtx.match,
+          confidence: 92,
+          isFallback: false,
+          isFollowUp: true,
+          answer: lastCtx.match.answer
+        };
+      }
+    }
+  }
 
   // 1. Strict Knowledge-Base Scope Enforcement:
   // If the query is out-of-scope, unverified, or ambiguous, immediately route to human support staff.
@@ -2356,6 +2447,7 @@ async function handleUserSubmission(queryText) {
             query: trimmed,
             context: "",
             sourceDoc: "VIT Student Support Office Directory",
+            history: lastCtx ? lastCtx.recentHistory : [],
             provider: state.aiProvider,
             apiKey: getActiveAiApiKey()
           })
@@ -2394,6 +2486,7 @@ async function handleUserSubmission(queryText) {
           query: trimmed,
           context: result.match.answer,
           sourceDoc: result.match.sourceDoc,
+          history: lastCtx ? lastCtx.recentHistory : [],
           provider: state.aiProvider,
           apiKey: getActiveAiApiKey()
         })
@@ -3033,84 +3126,16 @@ function setupEventListeners() {
       return;
     }
 
-    // '/' opens quick actions shortcuts
-    if (e.key === "/" && (chatInput.value === "" || chatInput.selectionStart === 0)) {
-      setTimeout(() => {
-        if (quickActionMenu) {
-          quickActionMenu.removeAttribute("hidden");
-          addActionBtn?.setAttribute("aria-expanded", "true");
-        }
-      }, 10);
-    } else if (e.key === "@" && (chatInput.value === "" || chatInput.selectionStart === 0)) {
+    if (e.key === "@" && (chatInput.value === "" || chatInput.selectionStart === 0)) {
       showToast("💡 Verified Knowledge Sources: SJT, TT, MB-102, VTOP, and Maker Space FabLab.");
     }
   });
 
-  // Quick Campus Actions (+) Button and Dropdown Menu
-  if (addActionBtn && quickActionMenu) {
-    addActionBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      // Close model menu if open
-      if (geminiModelMenu && !geminiModelMenu.hasAttribute("hidden")) {
-        geminiModelMenu.setAttribute("hidden", "true");
-        geminiModelPill?.setAttribute("aria-expanded", "false");
-      }
-
-      const isHidden = quickActionMenu.hasAttribute("hidden");
-      if (isHidden) {
-        quickActionMenu.removeAttribute("hidden");
-        addActionBtn.setAttribute("aria-expanded", "true");
-      } else {
-        quickActionMenu.setAttribute("hidden", "true");
-        addActionBtn.setAttribute("aria-expanded", "false");
-      }
-    });
-
-    quickActionMenu.addEventListener("click", (e) => {
-      const item = e.target.closest(".quick-menu-item");
-      if (!item) return;
-
-      quickActionMenu.setAttribute("hidden", "true");
-      addActionBtn.setAttribute("aria-expanded", "false");
-
-      const action = item.dataset.action;
-      const query = item.dataset.query;
-
-      if (action === "locate-classroom") {
-        chatInput.value = "Where is room SJT ";
-        chatInput.focus();
-        chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
-        updateSendButtonState();
-        return;
-      }
-
-      if (action === "open-tickets") {
-        switchTab("tickets");
-        return;
-      }
-
-      if (query) {
-        handleUserSubmission(query);
-      }
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!quickActionMenu.hasAttribute("hidden") && !quickActionMenu.contains(e.target) && e.target !== addActionBtn && !addActionBtn.contains(e.target)) {
-        quickActionMenu.setAttribute("hidden", "true");
-        addActionBtn.setAttribute("aria-expanded", "false");
-      }
-    });
-  }
 
   // Model selector pill on the Gemini capsule input (Sleek Model Popover Dropdown)
   if (geminiModelPill && geminiModelMenu) {
     geminiModelPill.addEventListener("click", (e) => {
       e.stopPropagation();
-      // Close quick action menu if open
-      if (quickActionMenu && !quickActionMenu.hasAttribute("hidden")) {
-        quickActionMenu.setAttribute("hidden", "true");
-        addActionBtn?.setAttribute("aria-expanded", "false");
-      }
 
       const isHidden = geminiModelMenu.hasAttribute("hidden");
       if (isHidden) {
@@ -3546,88 +3571,14 @@ function setupEventListeners() {
     });
   }
 
-  // Prompt chips & carousel navigation
+  // Quick Prompt Suggestion Bubbles
   if (chipsList) {
-    const scrollLeftBtn = document.getElementById("chips-scroll-left");
-    const scrollRightBtn = document.getElementById("chips-scroll-right");
-
-    function updateChipNavState() {
-      if (!scrollLeftBtn || !scrollRightBtn) return;
-      const maxScroll = chipsList.scrollWidth - chipsList.clientWidth;
-      if (maxScroll <= 4) {
-        scrollLeftBtn.disabled = true;
-        scrollRightBtn.disabled = true;
-        return;
-      }
-      scrollLeftBtn.disabled = chipsList.scrollLeft <= 4;
-      scrollRightBtn.disabled = chipsList.scrollLeft >= maxScroll - 4;
-    }
-
-    if (scrollLeftBtn) {
-      scrollLeftBtn.addEventListener("click", () => {
-        chipsList.scrollBy({ left: -240, behavior: "smooth" });
-      });
-    }
-
-    if (scrollRightBtn) {
-      scrollRightBtn.addEventListener("click", () => {
-        chipsList.scrollBy({ left: 240, behavior: "smooth" });
-      });
-    }
-
-    // Mouse wheel horizontal scroll conversion
-    chipsList.addEventListener("wheel", (e) => {
-      if (e.deltaY !== 0) {
-        e.preventDefault();
-        chipsList.scrollLeft += e.deltaY;
-        updateChipNavState();
-      }
-    }, { passive: false });
-
-    // Click & Drag to scroll smoothly
-    let isDown = false;
-    let startX = 0;
-    let initialScrollLeft = 0;
-    let hasDragged = false;
-
-    chipsList.addEventListener("mousedown", (e) => {
-      if (e.button !== 0) return;
-      isDown = true;
-      hasDragged = false;
-      startX = e.pageX - chipsList.offsetLeft;
-      initialScrollLeft = chipsList.scrollLeft;
-    });
-
-    window.addEventListener("mouseup", () => {
-      isDown = false;
-    });
-
-    chipsList.addEventListener("mousemove", (e) => {
-      if (!isDown) return;
-      const x = e.pageX - chipsList.offsetLeft;
-      const walk = (x - startX) * 1.3;
-      if (Math.abs(walk) > 4) {
-        hasDragged = true;
-      }
-      chipsList.scrollLeft = initialScrollLeft - walk;
-      updateChipNavState();
-    });
-
-    // Delegated click on chips (prevent submission if user was dragging)
     chipsList.addEventListener("click", (e) => {
-      if (hasDragged) {
-        hasDragged = false;
-        return;
-      }
       const chip = e.target.closest(".chip-btn");
       if (!chip) return;
       const query = chip.dataset.query;
       if (query) handleUserSubmission(query);
     });
-
-    chipsList.addEventListener("scroll", updateChipNavState, { passive: true });
-    window.addEventListener("resize", updateChipNavState);
-    setTimeout(updateChipNavState, 150);
   }
 
   // Chat History Sidebar & New Chat Controls
@@ -5414,3 +5365,4 @@ function escapeAttr(str) {
 
 // Boot application when DOM is ready
 document.addEventListener("DOMContentLoaded", initApp);
+

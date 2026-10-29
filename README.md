@@ -20,13 +20,18 @@ When inquiries fall outside the approved knowledge base, the system automaticall
 
 ## ✨ Key Capabilities
 
-- **💬 Persistent Multi-Thread Chat History Sidebar**:
-  - Full multi-conversation management with `+ New Chat` workflow.
+- **💬 Harmonized Multi-Thread Chat History Sidebar**:
+  - Full multi-conversation management with dedicated dock/collapse controls and `+ New Chat` workflow.
   - Contextual 3-dot action popover on every conversation: **Share Conversation** (clipboard export), **Pin chat to top**, **Inline In-Place Rename** (seamless editing right in the chat row without browser dialogs), **Archive chat**, and **Delete**.
-  - Persistent state in `localStorage` preserving message streams, timestamps, and model selections across sessions.
-  - Modern industrial chatbot layout: open by default on desktop (`≥1024px`) shifting main content right; off-canvas slide drawer with smooth backdrop on mobile and tablet.
+  - Unified **Apple Spring (0.52s Fluid)** motion architecture with matching `16px` card curvature and zero-jerk continuous layout push.
+  - Off-canvas slide drawer with backdrop blur on mobile and tablet.
 
-- **🧠 Grounded Hybrid AI Engine**:
+- **🧠 Grounded Multi-Turn Conversational AI Engine**:
+  - **Conversational Memory & Follow-Up Confirmation**: Resolves multi-turn follow-ups (*"you sure about that?"*, *"are you sure?"*, *"really?"*, *"can you confirm that?"*) by re-grounding with prior context across all model providers without generating false tickets.
+  - **Google Gemini**: Powered by `gemini-3.5-flash` with multi-turn chat history context and automated environment fallback (`GEMINI_API_KEY`).
+  - **Groq Cloud AI**: Ultra-fast free-tier cloud generation powered by `qwen/qwen3.8-27b` and `openai/gpt-oss-120b` with full message history arrays.
+  - **Local Campus RAG**: 100% offline deterministic keyword/intent retrieval with zero latency and zero external network calls.
+  - **Dynamic Atmospheric Horizon Sky**: Smooth time-dynamic sky gradients transitioning seamlessly across Morning, Afternoon, Evening, and Night.
   - **Google Gemini**: Powered by `gemini-3.5-flash` with automatic server-side environment fallback (`GEMINI_API_KEY`).
   - **Groq Cloud AI**: Ultra-fast free-tier cloud generation powered by `qwen/qwen3.8-27b` and `openai/gpt-oss-120b`.
   - **Local Campus RAG**: 100% offline deterministic keyword/intent retrieval with zero latency and zero external network calls.
@@ -92,17 +97,17 @@ When inquiries fall outside the approved knowledge base, the system automaticall
 The user interface is optimized across all standard viewports:
 
 - **Desktop & Ultra-wide (≥1024px)**: 
-  - Integrated multi-thread chat sidebar permanently visible on the left (`width: 270px`).
-  - Main chat viewport smoothly offsets (`margin-left: 270px; width: calc(100% - 270px)`) without dimming overlays.
-  - Bottom account footer with upward-opening popup menu.
+  - Harmonized floating cards with `16px` border curvature and `14px` viewport insets.
+  - Symmetrical side-by-side push layout with continuous numeric `padding-left` interpolation (`0.52s cubic-bezier(0.32, 0.72, 0, 1)`).
+  - Floating top-left dock controls that smoothly fade and translate in tandem with the sidebar.
 - **Tablets & Small Laptops (768px – 1023px)**: 
-  - Off-canvas slide-over chat history and settings drawers with smooth backdrop blur.
-  - Adaptive metric rows and responsive modal dialogs.
+  - Off-canvas slide-over frosted drawers (`top: 10px; bottom: 10px; border-radius: 14px`) with backdrop blur.
+  - Adaptive metric rows and touch-optimized responsive dialogs.
 - **Mobile Phones (320px – 767px)**:
-  - 58px compact header with touch-optimized brand icon to toggle history.
-  - Centered floating prompt capsule optimized for single-thumb typing.
+  - Full-screen distraction-free interface with touch-optimized floating toggle buttons.
+  - Gemini capsule pill input with `48px - 52px` height and `16px` font sizing to prevent iOS Safari auto-zoom.
+  - Streamlined horizontal suggestion pills and centered low-profile footer guidance.
   - Safe area inset padding (`env(safe-area-inset-top)` and `env(safe-area-inset-bottom)`).
-  - 16px font sizing on inputs to prevent iOS Safari auto-zoom.
 
 ---
 

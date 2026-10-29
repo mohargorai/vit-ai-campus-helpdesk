@@ -1190,12 +1190,24 @@ const server = http.createServer((req, res) => {
         const sourceDoc = sanitizeText(payload.sourceDoc || '', 150);
         const provider = sanitizeText(payload.provider || 'pollinations', 30);
         const apiKey = typeof payload.apiKey === 'string' ? payload.apiKey.trim().slice(0, 200) : '';
+        const rawHistory = Array.isArray(payload.history) ? payload.history : [];
+        const history = rawHistory
+          .filter(h => h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string')
+          .slice(-6)
+          .map(h => ({
+            role: h.role === 'assistant' ? 'assistant' : 'user',
+            content: sanitizeText(h.content, 1200)
+          }));
 
         if (!query) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ text: 'Please enter a valid campus inquiry.', provider: 'Helpdesk' }));
           return;
         }
+
+        const historyContext = history.length > 0
+          ? `\n\n[RECENT CONVERSATION HISTORY]\n${history.map(h => `${h.role === 'user' ? 'Student' : 'Assistant'}: "${h.content}"`).join('\n')}\n[END CONVERSATION HISTORY]`
+          : '';
 
         const systemPrompt = (context && context.trim().length > 0)
           ? `You are the official VIT Campus Student Support AI Assistant (Operating date: 16 October 2026).
@@ -1204,13 +1216,14 @@ You must strictly ground your answer on this verified campus knowledge base exce
 [CAMPUS CONTEXT]
 Document: "${sourceDoc}"
 Information: "${context}"
-[END CONTEXT]
+[END CONTEXT]${historyContext}
 
 Instructions:
 1. Speak in a warm, professional, and reassuring student advisor voice.
 2. Directly answer the student's question using the verified campus facts above. State the building, floor, room number, or procedure clearly in 1 to 3 helpful sentences.
-3. Be concise and natural. Do not invent unauthorized external details. If a specific room or procedure is not mentioned in the excerpt, politely advise the student to check the building notice board or visit the Student Support Helpdesk at MB-102. Never use robotic disclaimers like "outside the approved campus excerpt currently available in my database".`
-          : `You are the official VIT Campus Student Support AI Assistant at Vellore Institute of Technology (VIT Vellore campus, 16 October 2026).
+3. If the student is asking for confirmation or verification (e.g. "you sure?", "are you sure?", "really?", "can you confirm that?", "is that verified?"), reassure them warmly and confirm the specific verified rules, deadlines, or steps from the campus context above.
+4. Maintain natural conversational continuity based on the recent chat history while remaining strictly grounded in the verified campus facts. Never use robotic disclaimers like "outside the approved campus excerpt currently available in my database".`
+          : `You are the official VIT Campus Student Support AI Assistant at Vellore Institute of Technology (VIT Vellore campus, 16 October 2026).${historyContext}
 Your role is exclusively to greet students and introduce the services of the VIT Student Support Office.
 Instructions:
 1. If the message is a greeting or pleasantry, welcome the student warmly in 1 to 2 sentences and explain that you can help answer questions regarding VIT campus classroom locations (SJT, TT, MB, PRP), lab timings, Gravitas 2026 registration, hostel leave, Wi-Fi, and student procedures.
@@ -1245,13 +1258,25 @@ Instructions:
                   genConfig.thinkingConfig = { thinkingBudget: 0 };
                 }
 
+                const geminiContents = [];
+                if (history.length > 0) {
+                  for (const h of history) {
+                    geminiContents.push({
+                      role: h.role === 'assistant' ? 'model' : 'user',
+                      parts: [{ text: h.content }]
+                    });
+                  }
+                }
+                geminiContents.push({
+                  role: 'user',
+                  parts: [{ text: `${systemPrompt}\n\nStudent Message: "${query}"` }]
+                });
+
                 const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${keyToUse}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    contents: [{
-                      parts: [{ text: `${systemPrompt}\n\nStudent Message: "${query}"` }]
-                    }],
+                    contents: geminiContents,
                     generationConfig: genConfig
                   }),
                   signal: AbortSignal.timeout(9000)
@@ -1358,6 +1383,7 @@ Instructions:
                   model: modelName,
                   messages: [
                     { role: 'system', content: systemPrompt },
+                    ...history.map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content })),
                     { role: 'user', content: query }
                   ],
                   temperature: 0.3,
@@ -1395,6 +1421,7 @@ Instructions:
             body: JSON.stringify({
               messages: [
                 { role: 'system', content: systemPrompt },
+                ...history.map(h => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content })),
                 { role: 'user', content: query }
               ],
               model: 'openai-fast'
