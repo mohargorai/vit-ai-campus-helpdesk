@@ -1893,35 +1893,351 @@ function setupNavigation() {
 // ============================================================================
 // 6. CHAT ASSISTANT LOGIC & STREAMING
 // ============================================================================
-function getTimeBasedCampusGreeting() {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) {
+function getUserFirstName(user) {
+  if (!user) return "";
+  if (user.name && typeof user.name === "string" && user.name.trim().length > 0) {
+    const raw = user.name.trim();
+    const parts = raw.split(/\s+/);
+    if (/^dr\.?$/i.test(parts[0]) && parts.length > 1) {
+      return `${parts[0]} ${parts[1]}`;
+    }
+    return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+  }
+  if (user.email && typeof user.email === "string") {
+    const local = user.email.split("@")[0];
+    const firstToken = local.split(/[._0-9]/)[0];
+    if (firstToken && firstToken.length > 0) {
+      return firstToken.charAt(0).toUpperCase() + firstToken.slice(1);
+    }
+  }
+  return user.role === "staff" ? "Officer" : "VITian";
+}
+
+function getHeroCampusContext() {
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay(); // 0 = Sun, 1 = Mon, ..., 5 = Fri, 6 = Sat
+  const user = state.currentUser;
+  const firstName = getUserFirstName(user);
+  const isStaff = user && user.role === "staff";
+  const hasOpenTicket = user && state.tickets && state.tickets.some(t =>
+    t.studentEmail && user.email &&
+    t.studentEmail.toLowerCase() === user.email.toLowerCase() &&
+    t.status === "open"
+  );
+
+  // 1. Staff / Faculty / Officer Persona
+  if (isStaff) {
+    if (hour >= 5 && hour < 12) {
+      return {
+        heading: `Good morning, ${firstName} 📋`,
+        subtitle: "Desk MB-102 Support Console • Review pending student inquiries, verified regulations, and escalations.",
+        badge: "🏢 MB-102 Staff Console • Official Operations",
+        placeholder: "Search campus records or inquiries..."
+      };
+    } else if (hour >= 12 && hour < 17) {
+      return {
+        heading: `Good afternoon, ${firstName} 📊`,
+        subtitle: "Support Operations Active • Inspect verified RAG knowledge base or student ticket queues.",
+        badge: "🏢 MB-102 Staff Console • Official Operations",
+        placeholder: "Search campus records or inquiries..."
+      };
+    } else {
+      return {
+        heading: `Good evening, ${firstName} 🛡️`,
+        subtitle: "Desk MB-102 Console • Monitor escalated campus inquiries and academic regulations.",
+        badge: "🏢 MB-102 Staff Console • Official Operations",
+        placeholder: "Search campus records or inquiries..."
+      };
+    }
+  }
+
+  // Helper to pick randomly between variations
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  // 2. Active Escalated Ticket Situation
+  if (hasOpenTicket && Math.random() < 0.35) {
     return {
-      heading: "Good morning, VITian",
-      subtitle: "Where would you like to start your day on campus?",
-      badge: "VIT Campus AI Helpdesk • 5th Sem Innovate-a-thon",
-      placeholder: "Ask VIT Campus AI Helpdesk... (e.g. morning lab timings, SJT classrooms)"
+      heading: `Welcome back, ${firstName} 🎫`,
+      subtitle: "You have an active inquiry with Desk MB-102. Ask for live status, proctor guidelines, or campus rules.",
+      badge: "🎫 Active MB-102 Inquiry • In Review",
+      placeholder: "Ask anything about VIT..."
     };
-  } else if (hour >= 12 && hour < 17) {
-    return {
-      heading: "Good afternoon, VITian",
-      subtitle: "Need help with classrooms, lab hours, or OD approvals?",
-      badge: "VIT Campus AI Helpdesk • 5th Sem Innovate-a-thon",
-      placeholder: "Ask VIT Campus AI Helpdesk... (e.g. afternoon lab access, cafeteria, OD)"
-    };
-  } else if (hour >= 17 && hour < 22) {
-    return {
-      heading: "Good evening, VITian",
-      subtitle: "Looking for hostel night leaves, event updates, or campus guidance?",
-      badge: "VIT Campus AI Helpdesk • 5th Sem Innovate-a-thon",
-      placeholder: "Ask VIT Campus AI Helpdesk... (e.g. weekend hostel night leave, Gravitas)"
-    };
+  }
+
+  // 3. Friday Afternoon / Evening Leave Rush (Friday 14:00 - 20:59)
+  if (day === 5 && hour >= 14 && hour < 21) {
+    if (user) {
+      return pick([
+        {
+          heading: `Weekend leave on your mind, ${firstName}? 🎫`,
+          subtitle: "Submit your weekend hostel night leave on VTOP before 6:00 PM for automatic proctor routing.",
+          badge: "🎫 Weekend Leave Dispatch • Friday Special",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Heading home this weekend, ${firstName}? 🎒`,
+          subtitle: "Check Friday gate departure rules, night leave cutoffs, and Monday morning return timings.",
+          badge: "🚌 Weekend Outing Desk • Friday Edition",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return {
+        heading: "Planning weekend leave, VITian? 🎫",
+        subtitle: "Ask about Friday VTOP night leave cutoffs, proctor approvals, or weekend outing rules.",
+        badge: "🎫 Weekend Leave Dispatch • Friday Special",
+        placeholder: "Ask anything about VIT..."
+      };
+    }
+  }
+
+  // 4. Sunday Evening Week Preparation (Sunday 18:00 - 23:59)
+  if (day === 0 && hour >= 18 && hour < 24) {
+    if (user) {
+      return pick([
+        {
+          heading: `Ready for the week ahead, ${firstName}? 📚`,
+          subtitle: "Hostel in-time is 8:30 PM. Check your Monday slot timetable, classroom venues, or attendance cushion.",
+          badge: "📅 Week Ahead Briefing • Sunday Evening",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Prepping for Monday classes, ${firstName}? 🏛️`,
+          subtitle: "Review your 8:00 AM theory slots, SJT/TT venues, and lab requirements before the week starts.",
+          badge: "📝 Monday Prep Desk • VIT Campus AI",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return {
+        heading: "Prepping for the week ahead, VITian? 📚",
+        subtitle: "Check Monday lecture venues, morning slot timings, or FFCS course policies.",
+        badge: "📅 Week Ahead Briefing • Sunday Evening",
+        placeholder: "Ask anything about VIT..."
+      };
+    }
+  }
+
+  // 5. Weekend Daytime (Saturday or Sunday 08:00 - 17:59)
+  if ((day === 0 || day === 6) && hour >= 8 && hour < 18) {
+    if (user) {
+      return pick([
+        {
+          heading: `Happy weekend, ${firstName} 🌴`,
+          subtitle: "Heading for a day outing or club hackathons? Ask about gate passes, mess brunch, or Central Library timings.",
+          badge: "🏖️ Weekend Outing & Leave Desk",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Recharging this weekend, ${firstName}? ☀️`,
+          subtitle: "Explore student club workshops, outdoor sports facilities, or check upcoming hackathon schedules.",
+          badge: "🌴 Weekend Campus Guide",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return {
+        heading: "Weekend at VIT Campus 🌴",
+        subtitle: "Ask about weekend hostel gate passes, outing rules, or library weekend schedules.",
+        badge: "🌴 Weekend Campus Guide",
+        placeholder: "Ask anything about VIT..."
+      };
+    }
+  }
+
+  // 6. Early Morning (05:00 - 07:59)
+  if (hour >= 5 && hour < 8) {
+    if (user) {
+      return pick([
+        {
+          heading: `Rise and shine, ${firstName} ☀️`,
+          subtitle: "Heading for breakfast mess or an 8:00 AM slot? Check morning menus or classroom directions.",
+          badge: "🌅 Morning Campus Briefing",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Early start today, ${firstName}? 🏃`,
+          subtitle: "Central Library opens early. Find quiet morning study spots or check morning shuttle routes.",
+          badge: "☕ Early Morning Desk",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return {
+        heading: "Good morning, VITian 🌅",
+        subtitle: "Sign in with your @vitstudent.ac.in account or ask about morning class venues, lab hours, and mess timings.",
+        badge: "🌅 Morning Campus Desk",
+        placeholder: "Ask anything about VIT..."
+      };
+    }
+  }
+
+  // 7. Academic Class Hours (08:00 - 11:59)
+  if (hour >= 8 && hour < 12) {
+    if (user) {
+      return pick([
+        {
+          heading: `Good morning, ${firstName} 🎓`,
+          subtitle: "Need directions to SJT, TT, or PRP? Ask for classroom maps, lab hours, or faculty cabins.",
+          badge: "📚 Academic Slot Overwatch • Live",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Heading to lectures, ${firstName}? 🏛️`,
+          subtitle: "Check your 75% attendance threshold, 9-pointer exemption rule, or faculty consultation hours.",
+          badge: "⚡ Class Hours • Campus Guide",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return pick([
+        {
+          heading: "Good morning, VITian 🏛️",
+          subtitle: "Find classroom locations across SJT, TT, SMV, and PRP, or check academic attendance regulations.",
+          badge: "📚 Academic Hours • Active Guidance",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: "Welcome to VIT Campus Helpdesk",
+          subtitle: "Sign in with your @vitstudent.ac.in account or ask any academic or campus question below.",
+          badge: "VIT Campus AI Helpdesk • 5th Sem Innovate-a-thon",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    }
+  }
+
+  // 8. Midday & Lunch Hours (12:00 - 14:59)
+  if (hour >= 12 && hour < 15) {
+    if (user) {
+      return pick([
+        {
+          heading: `Good afternoon, ${firstName} 🍽️`,
+          subtitle: "Grabbing lunch at Foodys or Gazebo? Ask about afternoon lab slots, OD permissions, or library cubicles.",
+          badge: "☀️ Midday Campus Desk • VIT AI",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Afternoon recharge, ${firstName}? 🍛`,
+          subtitle: "Check afternoon lab timings, cafeteria menus, or verified leave regulations.",
+          badge: "🥪 Campus Midday Hub",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return {
+        heading: "Good afternoon, VITian 🍽️",
+        subtitle: "Explore campus eateries, afternoon lab timings, or Central Library study cubicles.",
+        badge: "☀️ Campus Midday Desk",
+        placeholder: "Ask anything about VIT..."
+      };
+    }
+  }
+
+  // 9. Late Afternoon / Clubs & Innovation (15:00 - 17:59)
+  if (hour >= 15 && hour < 18) {
+    if (user) {
+      return pick([
+        {
+          heading: `Good afternoon, ${firstName} ⚡`,
+          subtitle: "Heading to club meets, sports grounds, or Innovate-a-thon? Ask about OD and event registrations.",
+          badge: "🚀 Campus Life • 5th Sem Innovate-a-thon",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Wrapping up classes, ${firstName}? 🏃‍♂️`,
+          subtitle: "Check outdoor stadium hours, gym facilities, evening food spots, or club chapter venues.",
+          badge: "⚡ Campus Life & Activities",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return {
+        heading: "Campus Life & Innovation 🚀",
+        subtitle: "Ask about student clubs, sports ground hours, hackathon rules, or campus fests.",
+        badge: "🚀 VIT Campus AI Helpdesk • 5th Sem Innovate-a-thon",
+        placeholder: "Ask anything about VIT..."
+      };
+    }
+  }
+
+  // 10. Evening & Hostel In-Time (18:00 - 20:59)
+  if (hour >= 18 && hour < 21) {
+    if (user) {
+      return pick([
+        {
+          heading: `Good evening, ${firstName} 🌆`,
+          subtitle: "Dinner mess is open. Remember hostel in-times (8:30 PM) and check night leave approvals on VTOP.",
+          badge: "🌆 Evening Campus Overwatch",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Unwinding after classes, ${firstName}? ☕`,
+          subtitle: "Ask about evening Central Library hours, night canteen deliveries, or campus events.",
+          badge: "🌆 Campus Evening Desk",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return {
+        heading: "Good evening, VITian 🌆",
+        subtitle: "Ask about dinner mess timings, hostel gate policies, or evening library hours.",
+        badge: "🌆 Evening Campus Helpdesk",
+        placeholder: "Ask anything about VIT..."
+      };
+    }
+  }
+
+  // 11. Night Study Crunch (21:00 - 23:59)
+  if (hour >= 21 && hour < 24) {
+    if (user) {
+      return pick([
+        {
+          heading: `Late study session, ${firstName}? 🌙`,
+          subtitle: "Central Library night hours, night canteen delivery, and 24/7 FabLab access are live.",
+          badge: "🌙 Night Study Overwatch • 24/7",
+          placeholder: "Ask anything about VIT..."
+        },
+        {
+          heading: `Burning the midnight oil, ${firstName}? 📖`,
+          subtitle: "Prepping for CATs, FATs, or project submissions? Ask for syllabus topics or academic rules.",
+          badge: "✨ 24/7 Academic Support",
+          placeholder: "Ask anything about VIT..."
+        }
+      ]);
+    } else {
+      return {
+        heading: "Late Night Campus Support 🌙",
+        subtitle: "Find 24/7 Central Library timings, campus security, or night canteen services.",
+        badge: "🌙 24/7 Campus Support",
+        placeholder: "Ask anything about VIT..."
+      };
+    }
+  }
+
+  // 12. Graveyard / Midnight (00:00 - 04:59)
+  if (user) {
+    return pick([
+      {
+        heading: `Up late, ${firstName}? 🌌`,
+        subtitle: "24/7 Maker Space access, campus security helplines, and emergency medical contacts are on call.",
+        badge: "🌌 24/7 Campus Overwatch • Always Live",
+        placeholder: "Ask anything about VIT..."
+      },
+      {
+        heading: `Midnight hackathon mode, ${firstName}? 💻`,
+        subtitle: "Ask about overnight lab permissions, Wi-Fi connectivity, or emergency campus help.",
+        badge: "⚡ Midnight Desk • Always Live",
+        placeholder: "Ask anything about VIT..."
+      }
+    ]);
   } else {
     return {
-      heading: "Working late, VITian?",
-      subtitle: "Ask me about 24/7 FabLab access, night leave, or campus security.",
-      badge: "VIT Campus AI Helpdesk • 24/7 Campus Support",
-      placeholder: "Ask VIT Campus AI Helpdesk... (e.g. 24/7 Maker Space, library night hours)"
+      heading: "24/7 Overnight Support 🌌",
+      subtitle: "Campus Security, 24/7 Health Center, and emergency support are active across Vellore campus.",
+      badge: "🌌 24/7 Campus Overwatch • Always Live",
+      placeholder: "Ask anything about VIT..."
     };
   }
 }
@@ -1939,28 +2255,24 @@ function updateHeroGreeting() {
   const headingEl = document.getElementById("gemini-start-heading");
   const subEl = document.getElementById("gemini-start-subtitle");
   const badgeTextEl = document.getElementById("hero-badge-text");
+  const sparkleEl = document.querySelector(".hero-sparkle");
 
-  if (!state.currentUser) {
-    if (headingEl) headingEl.textContent = "Welcome to VIT Campus Helpdesk";
-    if (subEl) subEl.textContent = "Sign in with your @vitstudent.ac.in or @vit.ac.in account, or ask any campus question below.";
-    if (badgeTextEl) badgeTextEl.textContent = "VIT Campus AI Helpdesk • 5th Sem Innovate-a-thon";
-    if (chatInput) chatInput.placeholder = "Ask VIT Campus AI Helpdesk... (e.g. SJT classrooms, lab timings, leave rules)";
-    return;
+  const context = getHeroCampusContext();
+  if (headingEl) headingEl.textContent = context.heading;
+  if (subEl) subEl.textContent = context.subtitle;
+  
+  if (badgeTextEl && context.badge) {
+    const emojiMatch = context.badge.match(/^(\p{Extended_Pictographic}[\uFE0E\uFE0F]?)\s+(.+)$/u);
+    if (emojiMatch && sparkleEl) {
+      sparkleEl.textContent = emojiMatch[1];
+      badgeTextEl.textContent = emojiMatch[2];
+    } else {
+      if (sparkleEl) sparkleEl.textContent = "✦";
+      badgeTextEl.textContent = context.badge;
+    }
   }
-
-  const isStaff = state.currentUser.role === "staff";
-  if (isStaff) {
-    if (headingEl) headingEl.textContent = "Good evening, Officer";
-    if (subEl) subEl.textContent = "Desk MB-102 Support Console • Manage escalated inquiries, verified FAQs & campus benchmarks";
-    if (badgeTextEl) badgeTextEl.textContent = "Desk MB-102 Support Staff Console • Official Operations";
-    if (chatInput) chatInput.placeholder = "Search campus records or test student inquiry resolution...";
-  } else {
-    const greeting = getTimeBasedCampusGreeting();
-    if (headingEl) headingEl.textContent = greeting.heading;
-    if (subEl) subEl.textContent = greeting.subtitle;
-    if (badgeTextEl) badgeTextEl.textContent = greeting.badge;
-    if (chatInput) chatInput.placeholder = greeting.placeholder;
-  }
+  
+  if (chatInput) chatInput.placeholder = context.placeholder || "Ask anything about VIT...";
 }
 
 function renderInitialWelcomeMessage() {

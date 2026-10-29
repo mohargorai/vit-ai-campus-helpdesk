@@ -32,9 +32,8 @@ When inquiries fall outside the approved knowledge base, the system automaticall
   - **Groq Cloud AI**: Ultra-fast free-tier cloud generation powered by `qwen/qwen3.8-27b` and `openai/gpt-oss-120b` with full message history arrays.
   - **Local Campus RAG**: 100% offline deterministic keyword/intent retrieval with zero latency and zero external network calls.
   - **Dynamic Atmospheric Horizon Sky**: Smooth time-dynamic sky gradients transitioning seamlessly across Morning, Afternoon, Evening, and Night.
-  - **Google Gemini**: Powered by `gemini-3.5-flash` with automatic server-side environment fallback (`GEMINI_API_KEY`).
-  - **Groq Cloud AI**: Ultra-fast free-tier cloud generation powered by `qwen/qwen3.8-27b` and `openai/gpt-oss-120b`.
-  - **Local Campus RAG**: 100% offline deterministic keyword/intent retrieval with zero latency and zero external network calls.
+  - **Situational & Time-Aware Campus Intelligence Engine**: Real-time context engine adapting to 7 distinct time periods, days of the week, and student/staff situations (Friday leave dispatch, Sunday week prep, weekend outing desk, open ticket alerts) with first-name personalization.
+  - **Floating Translucent Capsule Dock**: Modern frosted glass capsule pill (`560px`) floating above a gradual atmospheric text blur dissolve dock with unclipped model selection.
   - Transparent citations referencing specific VIT handbooks, Dean Academics circulars, and Student Welfare regulations.
 
 - **🛡️ Out-of-Scope Detection & Automatic Escalation**:
