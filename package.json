@@ -1,6 +1,6 @@
 {
   "name": "vit-ai-campus-helpdesk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Production AI-Powered Campus Helpdesk Assistant for VIT Students & Support Office",
   "main": "server.js",
   "scripts": {
@@ -17,6 +17,6 @@
     "ai",
     "gemini"
   ],
-  "author": "VIT Campus Student Support",
+  "author": "Mohar Gorai",
   "license": "UNLICENSED"
 }
