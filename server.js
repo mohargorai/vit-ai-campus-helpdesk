@@ -74,6 +74,48 @@ const DATA_DIR = path.join(__dirname, 'data');
 const TICKETS_FILE = path.join(DATA_DIR, 'tickets.json');
 const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
 const SHARED_CHATS_FILE = path.join(DATA_DIR, 'shared_chats.json');
+const CONVERSATIONS_FILE = path.join(DATA_DIR, 'conversations.json');
+
+function formatStudentNameFromEmail(email) {
+  if (!email || typeof email !== 'string') return 'VITian Student';
+  const local = email.split('@')[0];
+  const clean = local.replace(/\d+$/, '').replace(/[._]/g, ' ').trim();
+  const formatted = clean
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+  return formatted || 'VITian Student';
+}
+
+function getAllConversations() {
+  try {
+    if (fs.existsSync(CONVERSATIONS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CONVERSATIONS_FILE, 'utf8'));
+      if (typeof data === 'object' && data !== null && !Array.isArray(data)) return data;
+    }
+  } catch (e) {
+    console.error('Error reading conversations file:', e);
+  }
+  return {};
+}
+
+function saveAllConversations(allConvs) {
+  try {
+    const tempFile = CONVERSATIONS_FILE + '.tmp.' + Date.now();
+    fs.writeFileSync(tempFile, JSON.stringify(allConvs, null, 2), 'utf8');
+    fs.renameSync(tempFile, CONVERSATIONS_FILE);
+    return true;
+  } catch (e) {
+    try {
+      fs.writeFileSync(CONVERSATIONS_FILE, JSON.stringify(allConvs, null, 2), 'utf8');
+      return true;
+    } catch (inner) {
+      console.error('Failed to save conversations:', inner);
+      return false;
+    }
+  }
+}
 
 function getSharedChats() {
   try {
@@ -128,7 +170,17 @@ function getAccounts() {
   try {
     if (fs.existsSync(ACCOUNTS_FILE)) {
       const data = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8'));
-      if (Array.isArray(data) && data.length > 0) return data;
+      if (Array.isArray(data) && data.length > 0) {
+        let changed = false;
+        data.forEach(a => {
+          if (a.role === 'student' && a.email && (!a.name || /\d{2,4}$/.test(a.name.trim()) || a.name.includes('gorai2024'))) {
+            a.name = formatStudentNameFromEmail(a.email);
+            changed = true;
+          }
+        });
+        if (changed) saveAccounts(data);
+        return data;
+      }
     }
   } catch (e) {
     console.error('Error reading accounts file:', e);
@@ -738,6 +790,57 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET /api/conversations?email=... (Retrieve user's cloud-persisted chat threads across browsers)
+  if (req.method === 'GET' && urlPath === '/api/conversations') {
+    const email = sanitizeEmail(parsedUrl.searchParams.get('email') || '');
+    if (!email) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Email parameter required' }));
+      return;
+    }
+    const all = getAllConversations();
+    const userConvs = Array.isArray(all[email]) ? all[email] : [];
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify(userConvs));
+    return;
+  }
+
+  // POST /api/conversations (Sync & persist user's chat conversations)
+  if (req.method === 'POST' && urlPath === '/api/conversations') {
+    let body = '';
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 5 * 1024 * 1024) { // 5MB limit
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Payload too large' }));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (tooLarge) return;
+      try {
+        const payload = parseSafeJson(body) || {};
+        const email = sanitizeEmail(payload.email || '');
+        if (!email || !Array.isArray(payload.conversations)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Valid email and conversations array required' }));
+          return;
+        }
+        const all = getAllConversations();
+        all[email] = payload.conversations.slice(0, 50); // Keep up to 50 active chats per account
+        saveAllConversations(all);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, count: all[email].length }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid JSON payload' }));
+      }
+    });
+    return;
+  }
+
   // GET /api/accounts (Public student directory - hides secret staff and admin accounts)
   if (req.method === 'GET' && urlPath === '/api/accounts') {
     const publicAccounts = getAccounts()
@@ -819,8 +922,16 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ success: false, error: 'Incorrect password for this account.' }));
             return;
           }
+          let userChanged = false;
+          if (user.role === 'student' && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes('gorai2024'))) {
+            user.name = formatStudentNameFromEmail(user.email);
+            userChanged = true;
+          }
           if (enteredRoll && (!user.regNo || user.regNo.trim().length === 0)) {
             user.regNo = enteredRoll;
+            userChanged = true;
+          }
+          if (userChanged) {
             saveAccounts(accounts);
           }
         } else {
@@ -832,8 +943,7 @@ const server = http.createServer((req, res) => {
           }
 
           // Auto-register new student account seamlessly
-          const namePart = email.split('@')[0].replace(/[._]/g, ' ');
-          const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+          const formattedName = formatStudentNameFromEmail(email);
           user = {
             id: `std-${Date.now()}`,
             role: 'student',

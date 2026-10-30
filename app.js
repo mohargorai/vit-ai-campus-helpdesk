@@ -804,6 +804,18 @@ function searchKnowledgeBase(rawQuery) {
 // ============================================================================
 const DEFAULT_ACCOUNTS = [];
 
+function formatStudentNameFromEmail(email) {
+  if (!email || typeof email !== "string") return "VITian Student";
+  const local = email.split("@")[0];
+  const clean = local.replace(/\d+$/, "").replace(/[._]/g, " ").trim();
+  const formatted = clean
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+  return formatted || "VITian Student";
+}
+
 function getAccounts() {
   try {
     const raw = localStorage.getItem("vit_accounts");
@@ -835,7 +847,13 @@ function getCurrentUser() {
     const parsed = JSON.parse(raw);
     if (parsed && parsed.email) {
       const found = accounts.find(a => a.email.toLowerCase() === parsed.email.toLowerCase());
-      return found ? { ...found, ...parsed } : parsed;
+      const user = found ? { ...found, ...parsed } : parsed;
+      if (user.role === "student" && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes("gorai2024"))) {
+        user.name = formatStudentNameFromEmail(user.email);
+        saveAccount(user);
+        localStorage.setItem("vit_current_user", JSON.stringify(user));
+      }
+      return user;
     }
   } catch (e) { }
   return null;
@@ -867,6 +885,9 @@ function logoutUser() {
 }
 
 function setCurrentUser(user) {
+  if (user && user.role === "student" && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes("gorai2024"))) {
+    user.name = formatStudentNameFromEmail(user.email);
+  }
   state.currentUser = user;
   state.activeConversationId = null;
   if (user) {
@@ -883,6 +904,7 @@ function setCurrentUser(user) {
   renderChatHistoryList();
   renderInitialWelcomeMessage();
   syncTicketsFromServer();
+  syncConversationsFromServer();
 }
 
 const TICKETS_STORAGE_KEY = "vit_escalated_tickets";
@@ -1063,10 +1085,73 @@ function getConversations() {
   }
 }
 
+let syncConvsDebounceTimer = null;
+
+function syncConversationsToServer(list) {
+  const user = state.currentUser;
+  if (!user || !user.email) return;
+  const email = user.email.trim().toLowerCase();
+
+  clearTimeout(syncConvsDebounceTimer);
+  syncConvsDebounceTimer = setTimeout(() => {
+    fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, conversations: list })
+    }).catch(err => console.warn("Backend conversation sync offline:", err));
+  }, 400);
+}
+
+async function syncConversationsFromServer() {
+  const user = state.currentUser;
+  if (!user || !user.email) return;
+  const email = user.email.trim().toLowerCase();
+
+  try {
+    const res = await fetch(`/api/conversations?email=${encodeURIComponent(email)}`);
+    if (res.ok) {
+      const serverConvs = await res.json();
+      if (Array.isArray(serverConvs)) {
+        const localConvs = getConversations();
+        const mergedMap = new Map();
+
+        // 1. Add server convs
+        serverConvs.forEach(c => {
+          if (c && c.id) mergedMap.set(c.id, c);
+        });
+
+        // 2. Add or update with local convs if local has newer messages
+        localConvs.forEach(c => {
+          if (!c || !c.id) return;
+          const existing = mergedMap.get(c.id);
+          if (!existing || (c.updatedAt && c.updatedAt > (existing.updatedAt || 0))) {
+            mergedMap.set(c.id, c);
+          }
+        });
+
+        const merged = Array.from(mergedMap.values());
+        merged.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+        const key = getConversationsStorageKey();
+        localStorage.setItem(key, JSON.stringify(merged));
+        renderChatHistoryList();
+
+        // If local had chats not yet stored on server, sync merged back up
+        if (merged.length > serverConvs.length) {
+          syncConversationsToServer(merged);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Server conversation sync offline, fallback to local storage:", err);
+  }
+}
+
 function saveConversations(list) {
   try {
     const key = getConversationsStorageKey();
     localStorage.setItem(key, JSON.stringify(list));
+    syncConversationsToServer(list);
   } catch (_) { }
 }
 
@@ -1840,9 +1925,11 @@ function initApp() {
 
   // Instant server sync & multi-device background polling (every 10s)
   syncTicketsFromServer();
+  syncConversationsFromServer();
   setInterval(() => {
     if (!document.hidden) {
       syncTicketsFromServer();
+      syncConversationsFromServer();
     }
   }, 10000);
 }
@@ -4907,6 +4994,9 @@ function setupAuthEventListeners() {
         }
 
         user = data.user;
+        if (user.role === "student" && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes("gorai2024"))) {
+          user.name = formatStudentNameFromEmail(user.email);
+        }
         user.password = password;
         const localAcc = getAccounts().find(a => a.email.toLowerCase() === email.toLowerCase());
         if (localAcc && localAcc.regNo && (!user.regNo || user.regNo.startsWith("24BCE1170"))) {
@@ -4930,10 +5020,13 @@ function setupAuthEventListeners() {
             }
             return;
           }
+          if (user.role === "student" && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes("gorai2024"))) {
+            user.name = formatStudentNameFromEmail(user.email);
+          }
           if (enteredRoll && !user.regNo) {
             user.regNo = enteredRoll;
-            saveAccount(user);
           }
+          saveAccount(user);
         } else {
           if (isStaff) {
             if (authStatusMsg) {
@@ -4943,8 +5036,7 @@ function setupAuthEventListeners() {
             }
             return;
           }
-          const namePart = email.split("@")[0].replace(/[._]/g, " ");
-          const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+          const formattedName = formatStudentNameFromEmail(email);
           user = {
             id: `std-${Date.now()}`,
             role: "student",
@@ -5303,10 +5395,12 @@ function setupAuthEventListeners() {
 
       if (user) {
         user.password = newPwd;
+        if (user.role === "student" && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes("gorai2024"))) {
+          user.name = formatStudentNameFromEmail(user.email);
+        }
         saveAccount(user);
       } else {
-        const namePart = email.split("@")[0].replace(/[._]/g, " ");
-        const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+        const formattedName = formatStudentNameFromEmail(email);
         user = {
           id: role === "student" ? `std-${Date.now()}` : `stf-${Date.now()}`,
           role,

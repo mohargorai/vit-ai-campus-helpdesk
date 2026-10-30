@@ -7,6 +7,7 @@ data/*.tmp.*
 data/accounts.json
 data/tickets.json
 data/shared_chats.json
+data/conversations.json
 .env
 .env.local
 mail_config.json
