@@ -12,10 +12,10 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=3">
-  <link rel="alternate icon" href="favicon.ico?v=3">
-  <link rel="apple-touch-icon" href="favicon.png?v=3">
-  <link rel="stylesheet" href="styles.css?v=93">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=4">
+  <link rel="alternate icon" href="favicon.ico?v=4">
+  <link rel="apple-touch-icon" href="favicon.png?v=4">
+  <link rel="stylesheet" href="styles.css?v=94">
 </head>
 
 <body data-active-tab="chat">
@@ -412,6 +412,25 @@
     <!-- VIEW 1: CHAT ASSISTANT (Context Sidebar Open on Desktop by Default) -->
     <section id="view-chat" class="view-panel active" aria-label="AI Helpdesk Chat Window">
       <div class="chat-container empty-chat" id="chat-container">
+        <!-- Floating Top-Right Conversation Quick Actions (Share & 3-Dot Options) -->
+        <div class="chat-top-actions" id="chat-top-actions" aria-label="Conversation actions">
+          <button type="button" class="chat-top-btn" id="chat-top-share-btn" title="Share conversation" aria-label="Share conversation">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
+            <span class="chat-top-btn-label">Share</span>
+          </button>
+          <button type="button" class="chat-top-btn icon-only" id="chat-top-menu-btn" title="More options" aria-label="More options">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="1.5" />
+              <circle cx="19" cy="12" r="1.5" />
+              <circle cx="5" cy="12" r="1.5" />
+            </svg>
+          </button>
+        </div>
+
         <!-- Chat Stream (Visible during active conversation) -->
         <div class="chat-stream" id="chat-messages" role="log" aria-live="polite" aria-atomic="false">
           <!-- Messages will stream here dynamically -->
@@ -1055,7 +1074,7 @@
     <span id="toast-message"></span>
   </div>
 
-  <script src="app.js?v=80"></script>
+  <script src="app.js?v=81"></script>
 </body>
 
 </html>

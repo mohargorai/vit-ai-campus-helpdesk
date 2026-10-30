@@ -1,14 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <!-- Rounded Squircle matching .avatar-ai border-radius -->
-  <rect width="32" height="32" rx="7" ry="7" fill="#ffffff"/>
-  
-  <!-- "VIT" Typography matching bold assistant avatar -->
-  <text x="16" y="16.5" 
-        fill="#000000" 
-        font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" 
-        font-weight="800" 
-        font-size="12" 
-        letter-spacing="-0.03em" 
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141824" />
+      <stop offset="100%" stop-color="#080a10" />
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#cbd5e1" />
+    </linearGradient>
+    <linearGradient id="sparkleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+    <radialGradient id="ambientGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#080a10" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Ambient Glow -->
+  <rect x="2" y="2" width="28" height="28" rx="7" fill="url(#ambientGlow)" />
+
+  <!-- Base Squircle with Glow Border -->
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#bgGrad)" stroke="#38bdf8" stroke-width="0.8" stroke-opacity="0.35" />
+
+  <!-- Bold VIT Wordmark -->
+  <text x="14.5" y="17.2" 
+        fill="url(#textGrad)" 
+        font-family="system-ui, -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" 
+        font-weight="900" 
+        font-size="11.5" 
+        letter-spacing="-0.04em" 
         text-anchor="middle" 
         dominant-baseline="central">VIT</text>
+
+  <!-- 4-point AI Sparkle in Top-Right -->
+  <path d="M26 4.5 Q26 7 28.5 7 Q26 7 26 9.5 Q26 7 23.5 7 Q26 7 26 4.5 Z" fill="url(#sparkleGrad)" />
+  <circle cx="26" cy="7" r="0.6" fill="#ffffff" />
 </svg>

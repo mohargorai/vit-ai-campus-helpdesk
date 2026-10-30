@@ -1307,7 +1307,7 @@ function openHistoryContextMenu(targetBtnOrEvent, chatId) {
   if (targetBtnOrEvent && targetBtnOrEvent.stopPropagation) {
     targetBtnOrEvent.stopPropagation();
     if (targetBtnOrEvent.target) {
-      targetEl = targetBtnOrEvent.target.closest(".history-item-menu-btn") || targetBtnOrEvent.target;
+      targetEl = targetBtnOrEvent.target.closest(".history-item-menu-btn") || targetBtnOrEvent.target.closest("#chat-top-menu-btn") || targetBtnOrEvent.target;
     }
   }
   activeContextMenuChatId = chatId;
@@ -1476,8 +1476,23 @@ function renameConversation(id) {
   const conv = list.find(c => c.id === id);
   if (!conv) return;
 
-  const itemEl = document.querySelector(`.history-item[data-id="${id}"]`);
-  if (!itemEl) return;
+  let itemEl = document.querySelector(`.history-item[data-id="${id}"]`);
+  const sidebar = document.getElementById("chat-history-sidebar");
+  if (!itemEl && sidebar && !sidebar.classList.contains("open")) {
+    openHistorySidebar();
+    itemEl = document.querySelector(`.history-item[data-id="${id}"]`);
+  }
+
+  if (!itemEl) {
+    const newTitle = prompt("Rename conversation:", conv.title || "New Chat");
+    if (newTitle && newTitle.trim() && newTitle.trim() !== conv.title) {
+      conv.title = newTitle.trim().slice(0, 50);
+      saveConversations(list);
+      renderChatHistoryList();
+      showToast("✓ Chat title updated");
+    }
+    return;
+  }
   const titleEl = itemEl.querySelector(".history-item-title");
   if (!titleEl) return;
 
@@ -4055,10 +4070,39 @@ function setupEventListeners() {
     });
   }
 
+  // Open Chat Top-Right Actions (Share & 3-Dot Options)
+  const chatTopShareBtn = document.getElementById("chat-top-share-btn");
+  const chatTopMenuBtn = document.getElementById("chat-top-menu-btn");
+
+  if (chatTopShareBtn) {
+    chatTopShareBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (state.activeConversationId) {
+        shareConversation(state.activeConversationId);
+      } else {
+        showToast("Open or start a conversation to share.");
+      }
+    });
+  }
+
+  if (chatTopMenuBtn) {
+    chatTopMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const menu = document.getElementById("history-context-menu");
+      if (menu && !menu.hasAttribute("hidden") && activeContextMenuChatId === state.activeConversationId) {
+        closeHistoryContextMenu();
+        return;
+      }
+      if (state.activeConversationId) {
+        openHistoryContextMenu(chatTopMenuBtn, state.activeConversationId);
+      }
+    });
+  }
+
   // Dismiss context menu on click outside
   document.addEventListener("click", (e) => {
     if (historyContextMenuEl && !historyContextMenuEl.hasAttribute("hidden")) {
-      if (!historyContextMenuEl.contains(e.target) && !e.target.closest(".history-item-menu-btn")) {
+      if (!historyContextMenuEl.contains(e.target) && !e.target.closest(".history-item-menu-btn") && !e.target.closest("#chat-top-menu-btn")) {
         closeHistoryContextMenu();
       }
     }
