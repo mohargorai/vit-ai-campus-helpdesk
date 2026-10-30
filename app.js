@@ -1349,6 +1349,7 @@ function closeHistoryContextMenu() {
 
 let activeShareTranscript = "";
 let activeShareUrl = "";
+let activeShareTitle = "";
 
 async function shareConversation(id) {
   const conv = getConversations().find(c => c.id === id);
@@ -1356,6 +1357,8 @@ async function shareConversation(id) {
     showToast("Nothing to share in this conversation yet.");
     return;
   }
+
+  activeShareTitle = conv.title || "Campus Inquiry";
 
   // 1. Prepare plain-text transcript
   let transcript = `--- VIT AI Campus Helpdesk ---\nConversation: ${conv.title}\nDate: ${new Date(conv.createdAt).toLocaleDateString()}\n\n`;
@@ -4241,6 +4244,75 @@ function setupEventListeners() {
           }
           showToast("✓ Full transcript copied to clipboard!");
         });
+      }
+    });
+  }
+
+  // Quick Share to Platforms
+  const sharePlatformWhatsapp = document.getElementById("share-platform-whatsapp");
+  const sharePlatformTelegram = document.getElementById("share-platform-telegram");
+  const sharePlatformX = document.getElementById("share-platform-x");
+  const sharePlatformLinkedin = document.getElementById("share-platform-linkedin");
+  const sharePlatformEmail = document.getElementById("share-platform-email");
+  const sharePlatformNative = document.getElementById("share-platform-native");
+
+  if (sharePlatformNative && typeof navigator.share === "function") {
+    sharePlatformNative.style.display = "inline-flex";
+  }
+
+  const getShareUrl = () => activeShareUrl || (shareLinkInput ? shareLinkInput.value : "") || window.location.href;
+  const getShareTitle = () => activeShareTitle || "Campus Inquiry";
+
+  if (sharePlatformWhatsapp) {
+    sharePlatformWhatsapp.addEventListener("click", () => {
+      const url = getShareUrl();
+      const text = `Check out this campus inquiry on VIT AI Helpdesk:\n"${getShareTitle()}"\n${url}`;
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+    });
+  }
+
+  if (sharePlatformTelegram) {
+    sharePlatformTelegram.addEventListener("click", () => {
+      const url = getShareUrl();
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent('VIT AI Helpdesk: ' + getShareTitle())}`, "_blank", "noopener,noreferrer");
+    });
+  }
+
+  if (sharePlatformX) {
+    sharePlatformX.addEventListener("click", () => {
+      const url = getShareUrl();
+      const text = `VIT AI Campus Helpdesk: "${getShareTitle()}"`;
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
+    });
+  }
+
+  if (sharePlatformLinkedin) {
+    sharePlatformLinkedin.addEventListener("click", () => {
+      const url = getShareUrl();
+      window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
+    });
+  }
+
+  if (sharePlatformEmail) {
+    sharePlatformEmail.addEventListener("click", () => {
+      const url = getShareUrl();
+      const subject = `VIT AI Campus Helpdesk: ${getShareTitle()}`;
+      const body = `Hi,\n\nHere is a shared campus guidance conversation from the VIT AI Helpdesk:\n\nTopic: ${getShareTitle()}\nLink: ${url}\n\n---\nVIT Student Support Office`;
+      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    });
+  }
+
+  if (sharePlatformNative) {
+    sharePlatformNative.addEventListener("click", async () => {
+      const url = getShareUrl();
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({
+            title: `VIT AI Helpdesk: ${getShareTitle()}`,
+            text: `Campus guidance Q&A: ${getShareTitle()}`,
+            url
+          });
+        } catch (_) { }
       }
     });
   }

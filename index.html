@@ -15,7 +15,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=4">
   <link rel="alternate icon" href="favicon.ico?v=4">
   <link rel="apple-touch-icon" href="favicon.png?v=4">
-  <link rel="stylesheet" href="styles.css?v=95">
+  <link rel="stylesheet" href="styles.css?v=96">
 </head>
 
 <body data-active-tab="chat">
@@ -903,6 +903,54 @@
 
         <div id="share-status-indicator" class="share-status-indicator" hidden></div>
 
+        <!-- Quick Share to Popular Platforms -->
+        <div class="share-platforms-section">
+          <span class="share-platforms-label">Quick Share</span>
+          <div class="share-platforms-grid">
+            <button type="button" class="share-platform-btn platform-whatsapp" id="share-platform-whatsapp" title="Share on WhatsApp">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2ZM12.04 20.15C10.56 20.15 9.11 19.76 7.85 19.01L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.81 13.47 3.81 11.91C3.81 7.37 7.5 3.68 12.04 3.68C14.25 3.68 16.31 4.54 17.87 6.1C19.42 7.66 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15ZM16.56 14.39C16.31 14.27 15.09 13.67 14.86 13.58C14.64 13.5 14.47 13.46 14.31 13.71C14.14 13.96 13.67 14.51 13.52 14.67C13.38 14.84 13.24 14.86 12.99 14.74C12.74 14.61 11.94 14.35 10.99 13.5C10.25 12.84 9.75 12.02 9.6 11.78C9.46 11.53 9.59 11.4 9.71 11.27C9.82 11.16 9.96 10.99 10.09 10.84C10.21 10.7 10.25 10.59 10.33 10.42C10.42 10.26 10.38 10.11 10.31 9.99C10.25 9.87 9.75 8.64 9.55 8.13C9.34 7.64 9.14 7.7 8.98 7.69L8.5 7.68C8.33 7.68 8.06 7.74 7.83 7.99C7.6 8.24 6.96 8.84 6.96 10.05C6.96 11.26 7.85 12.43 7.97 12.59C8.09 12.76 9.71 15.26 12.19 16.33C12.78 16.59 13.24 16.74 13.6 16.85C14.19 17.04 14.73 17.01 15.16 16.95C15.64 16.88 16.63 16.35 16.84 15.77C17.05 15.18 17.05 14.68 16.98 14.57C16.92 14.47 16.8 14.41 16.56 14.39Z" />
+              </svg>
+              <span>WhatsApp</span>
+            </button>
+            <button type="button" class="share-platform-btn platform-telegram" id="share-platform-telegram" title="Share on Telegram">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" />
+              </svg>
+              <span>Telegram</span>
+            </button>
+            <button type="button" class="share-platform-btn platform-x" id="share-platform-x" title="Share on X (Twitter)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              <span>X</span>
+            </button>
+            <button type="button" class="share-platform-btn platform-linkedin" id="share-platform-linkedin" title="Share on LinkedIn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v7.6H9.2v-7.6H6.46M7.83 6.25c-.95 0-1.72.77-1.72 1.72s.77 1.72 1.72 1.72 1.72-.77 1.72-1.72-.77-1.72-1.72-1.72z" />
+              </svg>
+              <span>LinkedIn</span>
+            </button>
+            <button type="button" class="share-platform-btn platform-email" id="share-platform-email" title="Share via Email">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="20" height="16" x="2" y="4" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              <span>Email</span>
+            </button>
+            <button type="button" class="share-platform-btn platform-native" id="share-platform-native" title="More sharing options" style="display: none;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
+                <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
+              </svg>
+              <span>More</span>
+            </button>
+          </div>
+        </div>
+
         <div class="share-secondary-actions">
           <button type="button" id="share-copy-text-btn" class="btn-ghost share-transcript-btn">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -1074,7 +1122,7 @@
     <span id="toast-message"></span>
   </div>
 
-  <script src="app.js?v=82"></script>
+  <script src="app.js?v=83"></script>
 </body>
 
 </html>
