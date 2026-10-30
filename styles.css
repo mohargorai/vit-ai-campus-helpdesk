@@ -4641,28 +4641,33 @@ body[data-user-role="admin"] .student-only {
 }
 
 .history-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
 }
 
 .history-item.active {
-  background: rgba(56, 189, 248, 0.09);
-  border-color: rgba(56, 189, 248, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #ffffff;
   font-weight: 500;
-  box-shadow: inset 2.5px 0 0 #38bdf8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .history-item-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.5);
+  color: #64748b;
   flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.history-item:hover .history-item-icon {
+  color: #94a3b8;
 }
 
 .history-item.active .history-item-icon {
-  color: #60a5fa;
+  color: #ffffff;
 }
 
 .history-item-title {
