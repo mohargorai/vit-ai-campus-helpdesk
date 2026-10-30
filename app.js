@@ -2622,7 +2622,9 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
   ` : '';
 
   row.innerHTML = `
-    <div class="avatar avatar-ai" aria-label="AI Helpdesk Avatar">VIT</div>
+    <div class="avatar avatar-ai" aria-label="AI Helpdesk Avatar">
+      <img src="favicon.svg?v=4" alt="VIT AI" class="avatar-ai-img" width="36" height="36" loading="lazy">
+    </div>
     <div class="message-bubble">
       <div class="message-meta">
         <span class="sender-name">VIT Student Support AI</span>
@@ -2675,7 +2677,7 @@ function appendTypingIndicator() {
   row.innerHTML = `
     <div class="avatar avatar-ai thinking-avatar" aria-label="AI Helpdesk Avatar">
       <div class="avatar-glow" aria-hidden="true"></div>
-      <span>VIT</span>
+      <img src="favicon.svg?v=4" alt="VIT AI" class="avatar-ai-img" width="36" height="36">
     </div>
     <div class="message-bubble thinking-bubble" role="status" aria-live="polite">
       <div class="thinking-header">

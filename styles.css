@@ -1180,8 +1180,28 @@ body[data-campus-time="night"] .chat-container {
 }
 
 .avatar-ai {
-  background: #ffffff;
-  color: #000000;
+  background: transparent;
+  color: #ffffff;
+  padding: 0;
+  border-radius: 8px;
+  overflow: visible;
+  position: relative;
+}
+
+.avatar-ai-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 8px;
+  object-fit: cover;
+  position: relative;
+  z-index: 1;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.avatar-ai:hover .avatar-ai-img {
+  transform: scale(1.05);
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45));
 }
 
 .avatar-user {
@@ -3304,6 +3324,10 @@ body[data-campus-time="night"] .chat-container {
     border-radius: 6px;
   }
 
+  .avatar-ai-img {
+    border-radius: 6px;
+  }
+
   .message-bubble {
     font-size: 13.5px;
     line-height: 1.48;
@@ -3606,7 +3630,8 @@ body[data-campus-time="night"] .chat-container {
   z-index: 0;
 }
 
-.thinking-avatar span {
+.thinking-avatar span,
+.thinking-avatar img {
   position: relative;
   z-index: 1;
 }
