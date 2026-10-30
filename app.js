@@ -1848,9 +1848,9 @@ function initApp() {
 }
 
 function switchTab(targetTab) {
-  const isStaff = state.currentUser && state.currentUser.role === "staff";
-  if (targetTab === "tests" && !isStaff) {
-    showToast("Access Restricted: Benchmark test suite is restricted to Staff & Administrators.");
+  const isAdmin = state.currentUser && state.currentUser.role === "admin";
+  if (targetTab === "tests" && !isAdmin) {
+    showToast("Access Restricted: Benchmark test suite is restricted to Administrators.");
     return;
   }
 
