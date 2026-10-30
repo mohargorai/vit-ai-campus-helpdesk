@@ -871,6 +871,9 @@ function setCurrentUser(user) {
   state.activeConversationId = null;
   if (user) {
     localStorage.setItem("vit_current_user", JSON.stringify(user));
+    if (user.role === "student") {
+      localStorage.setItem("vit_last_student_user", JSON.stringify(user));
+    }
   } else {
     localStorage.setItem("vit_current_user", "logged_out");
   }
@@ -4813,7 +4816,33 @@ function setupAuthEventListeners() {
   if (adminSwitchStudentBtn) {
     adminSwitchStudentBtn.addEventListener("click", () => {
       const accounts = getAccounts();
-      const student = accounts.find(a => a.role === "student") || DEFAULT_ACCOUNTS[0];
+      let student = null;
+      try {
+        const lastStudentRaw = localStorage.getItem("vit_last_student_user");
+        if (lastStudentRaw) {
+          const parsed = JSON.parse(lastStudentRaw);
+          if (parsed && parsed.email) {
+            student = accounts.find(a => a.email && a.email.toLowerCase() === parsed.email.toLowerCase() && a.role === "student");
+          }
+        }
+      } catch (_) {}
+
+      if (!student) {
+        student = accounts.find(a => a.role === "student" && a.email && a.email.toLowerCase().includes("mohar"));
+      }
+      if (!student) {
+        student = accounts.find(a => a.role === "student");
+      }
+      if (!student) {
+        student = DEFAULT_ACCOUNTS.find(a => a.role === "student") || {
+          id: "stu-default",
+          role: "student",
+          name: "Mohar Gorai",
+          email: "mohar.gorai2024@vitstudent.ac.in",
+          regNo: "24BCE1024"
+        };
+      }
+
       setCurrentUser(student);
       const settingsSidebar = document.getElementById("settings-sidebar");
       const settingsBackdrop = document.getElementById("settings-backdrop");
@@ -4826,7 +4855,7 @@ function setupAuthEventListeners() {
         settingsBackdrop.setAttribute("aria-hidden", "true");
       }
       document.getElementById("settings-wheel-btn")?.setAttribute("aria-expanded", "false");
-      showToast("Switched to Student (VITian) profile.");
+      showToast(`Switched to Student profile (${student.name || "Student"}).`);
     });
   }
 
