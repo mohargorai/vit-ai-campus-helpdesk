@@ -2,6 +2,10 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const tls = require('node:tls');
+const crypto = require('node:crypto');
+const bcrypt = require('bcryptjs');
+const { z } = require('zod');
+const { runMigration, isBcryptHash, BCRYPT_SALT_ROUNDS } = require('./migrate_passwords');
 
 // Auto-load local .env if present (zero dependencies)
 if (fs.existsSync(path.join(__dirname, '.env'))) {
@@ -41,6 +45,212 @@ const MIME_TYPES = {
 };
 
 const MAIL_CONFIG_FILE = path.join(__dirname, 'mail_config.json');
+
+// ============================================================================
+// SECURITY & INPUT SANITIZATION UTILITIES
+// ============================================================================
+function hasHtmlOrScriptTags(val) {
+  if (typeof val !== 'string') return false;
+  return /<[^>]+>|script\b|javascript:/i.test(val);
+}
+
+function sanitizeInput(val, maxLength = 100) {
+  if (typeof val !== 'string') return '';
+  return val
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // strip script tags
+    .replace(/<[^>]+>/g, '') // strip HTML tags
+    .replace(/[\0\r]/g, '') // strip control bytes
+    .replace(/[<>"'&]/g, '') // strip sensitive HTML special characters
+    .trim()
+    .slice(0, maxLength);
+}
+
+function sanitizeAuthEmail(val) {
+  const clean = sanitizeInput(val, 100).toLowerCase();
+  return clean.replace(/[^a-z0-9@._+-]/g, '');
+}
+
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return '***';
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***';
+  const name = parts[0];
+  const domain = parts[1];
+  const maskedName = name.length <= 2 ? name[0] + '*' : name[0] + '*'.repeat(Math.min(name.length - 2, 6)) + name[name.length - 1];
+  return `${maskedName}@${domain}`;
+}
+
+// Zod Validation Schemas
+const LoginSchema = z.object({
+  email: z.string({ required_error: 'Required' })
+    .min(5, 'Email too short')
+    .max(100, 'Email too long')
+    .refine(val => !hasHtmlOrScriptTags(val), { message: 'Invalid characters' })
+    .email('Invalid email address')
+    .refine(
+      email => email.endsWith('@vitstudent.ac.in') || email.endsWith('@vit.ac.in'),
+      { message: 'Institutional email required' }
+    ),
+  password: z.string({ required_error: 'Required' })
+    .min(6, 'Password too short')
+    .max(100, 'Password too long'),
+  regNo: z.string()
+    .max(25, 'Registration number too long')
+    .refine(val => !hasHtmlOrScriptTags(val), { message: 'Invalid characters' })
+    .optional()
+    .default('')
+});
+
+const SignupSchema = z.object({
+  email: z.string({ required_error: 'Required' })
+    .min(5, 'Email too short')
+    .max(100, 'Email too long')
+    .refine(val => !hasHtmlOrScriptTags(val), { message: 'Invalid characters' })
+    .email('Invalid email address')
+    .refine(
+      email => email.endsWith('@vitstudent.ac.in') || email.endsWith('@vit.ac.in'),
+      { message: 'Institutional email required' }
+    ),
+  password: z.string({ required_error: 'Required' })
+    .min(6, 'Password must be at least 6 characters')
+    .max(100, 'Password too long'),
+  name: z.string()
+    .max(60, 'Name too long')
+    .refine(val => !hasHtmlOrScriptTags(val), { message: 'Invalid characters' })
+    .optional()
+    .default(''),
+  regNo: z.string()
+    .max(25, 'Registration number too long')
+    .refine(val => !hasHtmlOrScriptTags(val), { message: 'Invalid characters' })
+    .optional()
+    .default('')
+});
+
+const ResetPasswordSchema = z.object({
+  email: z.string({ required_error: 'Required' })
+    .min(5)
+    .max(100)
+    .email()
+    .refine(email => email.endsWith('@vitstudent.ac.in') || email.endsWith('@vit.ac.in')),
+  newPassword: z.string({ required_error: 'Required' })
+    .min(6, 'New password must be at least 6 characters')
+    .max(100)
+});
+
+// Password Hashing & Verification
+async function hashPassword(plainText) {
+  return await bcrypt.hash(plainText, BCRYPT_SALT_ROUNDS);
+}
+
+async function verifyPassword(plainText, storedHashOrPlain) {
+  if (!plainText || !storedHashOrPlain) return false;
+  if (isBcryptHash(storedHashOrPlain)) {
+    return await bcrypt.compare(plainText, storedHashOrPlain);
+  }
+  // Constant-time comparison fallback for legacy plain text before migration
+  const plainBuf = Buffer.from(String(plainText));
+  const storedBuf = Buffer.from(String(storedHashOrPlain));
+  if (plainBuf.length !== storedBuf.length) {
+    crypto.timingSafeEqual(plainBuf, plainBuf); // dummy compare to mitigate timing variance
+    return false;
+  }
+  return crypto.timingSafeEqual(plainBuf, storedBuf);
+}
+
+// In-Memory Rate Limiting & Account Lockout Store
+const ipRateLimits = new Map();
+const accountLockouts = new Map();
+const activeResetTokens = new Map();
+
+const IP_RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const IP_RATE_LIMIT_MAX = 10; // max 10 requests per minute
+const ACCOUNT_LOCKOUT_MAX_ATTEMPTS = 5; // 5 consecutive failed attempts
+const ACCOUNT_LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes lockout
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of ipRateLimits.entries()) {
+    if (now - data.windowStart > IP_RATE_LIMIT_WINDOW_MS) {
+      ipRateLimits.delete(ip);
+    }
+  }
+  for (const [email, data] of accountLockouts.entries()) {
+    if (data.lockedUntil && now > data.lockedUntil && now - data.lastAttemptTime > 24 * 60 * 60 * 1000) {
+      accountLockouts.delete(email);
+    }
+  }
+  for (const [token, data] of activeResetTokens.entries()) {
+    if (now > data.expires) {
+      activeResetTokens.delete(token);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress || '127.0.0.1';
+}
+
+function checkIpRateLimit(clientIp) {
+  const now = Date.now();
+  let record = ipRateLimits.get(clientIp);
+  if (!record || now - record.windowStart > IP_RATE_LIMIT_WINDOW_MS) {
+    record = { count: 1, windowStart: now };
+    ipRateLimits.set(clientIp, record);
+    return { allowed: true, remaining: IP_RATE_LIMIT_MAX - 1 };
+  }
+  record.count++;
+  if (record.count > IP_RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((record.windowStart + IP_RATE_LIMIT_WINDOW_MS - now) / 1000);
+    return { allowed: false, retryAfter: Math.max(1, retryAfter) };
+  }
+  return { allowed: true, remaining: IP_RATE_LIMIT_MAX - record.count };
+}
+
+async function sendAccountLockoutEmail(toEmail, resetLink) {
+  const subject = "[Security Alert] VIT Helpdesk Account Temporarily Locked";
+  const html = `
+    <div style="font-family: Arial, -apple-system, sans-serif; max-width: 540px; margin: 0 auto; background: #0d0d0e; color: #f4f4f5; padding: 24px; border-radius: 12px; border: 1px solid #27272a;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #f87171; margin: 0; font-size: 20px;">🛡️ Security Alert: Account Temporarily Locked</h2>
+        <p style="color: #a1a1aa; font-size: 13px; margin: 4px 0 0 0;">VIT AI Campus Helpdesk &bull; Student Welfare Office (MB-102)</p>
+      </div>
+      <div style="background: #18181b; padding: 20px; border-radius: 8px; border: 1px solid #3f3f46;">
+        <p style="margin: 0 0 12px 0; font-size: 14px;">Hello <strong>VITian</strong>,</p>
+        <p style="margin: 0 0 16px 0; font-size: 13px; color: #d4d4d8; line-height: 1.5;">We detected <strong>5 consecutive failed login attempts</strong> on your account (<strong>${toEmail}</strong>).</p>
+        <p style="margin: 0 0 16px 0; font-size: 13px; color: #d4d4d8; line-height: 1.5;">For your protection, sign-in access has been locked for <strong>15 minutes</strong>.</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${resetLink}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; display: inline-block;">Reset Password &amp; Unlock Account</a>
+        </div>
+        <p style="font-size: 12px; color: #a1a1aa; line-height: 1.4; margin: 16px 0 0 0;">If you forgot your password, click the button above to set a new password. This link is valid for 15 minutes.</p>
+      </div>
+      <p style="text-align: center; font-size: 11px; color: #71717a; margin-top: 20px;">&copy; 2026 Student Support Services, Vellore Institute of Technology.</p>
+    </div>
+  `;
+  const text = `[Security Alert] Your VIT Helpdesk account (${toEmail}) has been temporarily locked for 15 minutes after 5 consecutive failed login attempts.\n\nTo reset your password and unlock your account, visit:\n${resetLink}\n\nThis link is valid for 15 minutes.`;
+
+  try {
+    const cfg = getMailConfig();
+    const hasGmail = Boolean(cfg.smtpUser && cfg.smtpPass);
+    const hasResend = Boolean(cfg.resendApiKey);
+    const hasEmailJs = Boolean(cfg.emailjsServiceId && cfg.emailjsTemplateId && cfg.emailjsPublicKey);
+
+    if (cfg.provider === 'emailjs' || (hasEmailJs && !hasGmail)) {
+      await sendEmailJs({ serviceId: cfg.emailjsServiceId, templateId: cfg.emailjsTemplateId, publicKey: cfg.emailjsPublicKey, to: toEmail, securityCode: 'LOCKOUT', html });
+    } else if (cfg.provider === 'resend' || (hasResend && !hasGmail)) {
+      await sendResendApi({ apiKey: cfg.resendApiKey, to: toEmail, subject, html, text });
+    } else if (hasGmail) {
+      await sendGmailSmtp({ user: cfg.smtpUser, pass: cfg.smtpPass, to: toEmail, subject, html, text });
+    } else {
+      console.log(`[LOCKOUT_EMAIL_SIMULATED] Email service not configured. Reset link for ${maskEmail(toEmail)}: ${resetLink}`);
+    }
+  } catch (err) {
+    console.error(`[LOCKOUT_EMAIL_ERROR] Failed to dispatch lockout email to ${maskEmail(toEmail)}:`, err.message);
+  }
+}
 
 function getMailConfig() {
   let fileConfig = {};
@@ -149,7 +359,7 @@ const SEED_ACCOUNTS = [
     email: "admin@vit.ac.in",
     regNo: "ADM-ROOT",
     designation: "IT & Helpdesk Systems Admin",
-    password: process.env.ADMIN_PASSWORD || "",
+    password: process.env.ADMIN_PASSWORD_HASH || "$2b$12$6mYJKDnBJMSyNadDw2ZOZOf78iWV8kJ.BjlyP6MUpm3VK1Z7CVyzq", // bcrypt hash of VitAdmin#Secret2026!
     avatar: "🛡️"
   },
   {
@@ -159,7 +369,7 @@ const SEED_ACCOUNTS = [
     email: "staff.desk@vit.ac.in",
     regNo: "EMP-MB102",
     designation: "Student Welfare Officer (Desk MB-102)",
-    password: process.env.STAFF_PASSWORD || "",
+    password: process.env.STAFF_PASSWORD_HASH || "$2b$12$D4cOZu3I1XTAIVaSOQ6cvOVcbxP7y2jMwoUXVp4DyeqQmvAF7nS12", // bcrypt hash of VitStaff#Secret2026!
     avatar: "👨‍💼"
   }
 ];
@@ -175,6 +385,10 @@ function getAccounts() {
         data.forEach(a => {
           if (a.role === 'student' && a.email && (!a.name || /\d{2,4}$/.test(a.name.trim()) || a.name.includes('gorai2024'))) {
             a.name = formatStudentNameFromEmail(a.email);
+            changed = true;
+          }
+          if (a.password && !isBcryptHash(a.password)) {
+            a.password = bcrypt.hashSync(a.password, BCRYPT_SALT_ROUNDS);
             changed = true;
           }
         });
@@ -876,8 +1090,25 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // POST /api/auth/login (Unified sign-in with auto-registration for campus students)
-  if (req.method === 'POST' && urlPath === '/api/auth/login') {
+  // POST /api/auth/login and /login (Unified sign-in with rate limiting, account lockout & bcrypt)
+  if (req.method === 'POST' && (urlPath === '/api/auth/login' || urlPath === '/login')) {
+    const clientIp = getClientIp(req);
+
+    // 1. IP-Based Rate Limiting (max 10 requests per minute per IP)
+    const ipCheck = checkIpRateLimit(clientIp);
+    if (!ipCheck.allowed) {
+      console.warn(`[RATE_LIMIT_EXCEEDED] IP ${clientIp} exceeded login rate limit on ${urlPath}. Retry-After: ${ipCheck.retryAfter}s`);
+      res.writeHead(429, {
+        'Content-Type': 'application/json',
+        'Retry-After': String(ipCheck.retryAfter)
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: 'Too many login requests from your network. Please wait a minute before trying again.'
+      }));
+      return;
+    }
+
     let body = '';
     let tooLarge = false;
     req.on('data', chunk => {
@@ -889,81 +1120,283 @@ const server = http.createServer((req, res) => {
         req.destroy();
       }
     });
-    req.on('end', () => {
+
+    req.on('end', async () => {
       if (tooLarge) return;
-      try {
-        const payload = parseSafeJson(body) || {};
-        const email = sanitizeEmail(payload.email || '');
-        const password = typeof payload.password === 'string' ? payload.password.slice(0, 100) : '';
-        const enteredRoll = sanitizeRegNo(payload.regNo || '');
 
-        if (!email || !password) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Valid email and password are required' }));
+      // 2. Safe Parsing & Strict Input Sanitization
+      const rawPayload = parseSafeJson(body) || {};
+      const rawEmail = typeof rawPayload.email === 'string' ? rawPayload.email.trim() : '';
+      const rawPassword = typeof rawPayload.password === 'string' ? rawPayload.password.trim() : '';
+      const rawRoll = typeof rawPayload.regNo === 'string' ? rawPayload.regNo.trim() : '';
+
+      if (hasHtmlOrScriptTags(rawEmail) || hasHtmlOrScriptTags(rawRoll)) {
+        console.warn(`[AUTH_VALIDATION_FAILURE] ${new Date().toISOString()} | IP: ${clientIp} | Route: ${urlPath} | Details: HTML/script tag injection detected`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Invalid authentication request. Please verify your credentials and try again.'
+        }));
+        return;
+      }
+
+      const cleanEmail = sanitizeAuthEmail(rawEmail);
+      const cleanRoll = sanitizeRegNo(rawRoll);
+
+      // 3. Server-Side Schema Validation via Zod
+      const validation = LoginSchema.safeParse({
+        email: cleanEmail,
+        password: rawPassword,
+        regNo: cleanRoll
+      });
+
+      if (!validation.success) {
+        console.warn(`[AUTH_VALIDATION_FAILURE] ${new Date().toISOString()} | IP: ${clientIp} | Route: ${urlPath} | Errors: ${JSON.stringify(validation.error.flatten().fieldErrors)}`);
+        // Generic error message: do not expose which field failed specifically
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Invalid authentication request. Please verify your credentials and try again.'
+        }));
+        return;
+      }
+
+      const { email, password, regNo: enteredRoll } = validation.data;
+
+      // 4. Account Lockout Check (15 minutes after 5 consecutive failures)
+      const now = Date.now();
+      let lockoutRecord = accountLockouts.get(email);
+      if (lockoutRecord) {
+        if (lockoutRecord.lockedUntil && now < lockoutRecord.lockedUntil) {
+          console.warn(`[LOCKED_ACCOUNT_ATTEMPT] IP: ${clientIp} attempted login to locked account: ${maskEmail(email)}`);
+          // Progressive uniform delay to mitigate timing analysis
+          await new Promise(r => setTimeout(r, 1000));
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: 'Authentication failed. Please verify your credentials or try again later.'
+          }));
+          return;
+        } else if (lockoutRecord.lockedUntil && now >= lockoutRecord.lockedUntil) {
+          // Lockout window expired, clear state
+          accountLockouts.delete(email);
+          lockoutRecord = undefined;
+        }
+      }
+
+      const isStaff = email.endsWith('@vit.ac.in');
+      const isAdmin = email === 'admin@vit.ac.in' || email.startsWith('admin.');
+      const role = isAdmin ? 'admin' : (isStaff ? 'staff' : 'student');
+      const accounts = getAccounts();
+      let user = accounts.find(a => a.email.toLowerCase() === email);
+
+      // Helper: Record failure, execute progressive delay, trigger lockout & notification
+      const handleFailedAuth = async () => {
+        let rec = accountLockouts.get(email) || {
+          failedAttempts: 0,
+          lastAttemptTime: now,
+          lockedUntil: null,
+          lockoutEmailSent: false
+        };
+        rec.failedAttempts++;
+        rec.lastAttemptTime = Date.now();
+        accountLockouts.set(email, rec);
+
+        // Progressive delay: 1st: 300ms, 2nd: 600ms, 3rd: 1000ms, 4th: 1500ms, 5th: 2000ms
+        const delayMs = Math.min(rec.failedAttempts * 400, 2500);
+        await new Promise(r => setTimeout(r, delayMs));
+
+        if (rec.failedAttempts >= ACCOUNT_LOCKOUT_MAX_ATTEMPTS) {
+          rec.lockedUntil = Date.now() + ACCOUNT_LOCKOUT_DURATION_MS;
+          console.warn(`[ACCOUNT_LOCKED] Account ${maskEmail(email)} locked for 15 minutes after ${rec.failedAttempts} consecutive failed attempts. IP: ${clientIp}`);
+
+          if (!rec.lockoutEmailSent) {
+            rec.lockoutEmailSent = true;
+            const resetToken = crypto.randomBytes(32).toString('hex');
+            activeResetTokens.set(resetToken, { email, expires: Date.now() + 15 * 60 * 1000 });
+            const protocol = req.headers['x-forwarded-proto'] || 'http';
+            const host = req.headers.host || `localhost:${PORT}`;
+            const resetLink = `${protocol}://${host}/#reset-token=${resetToken}&email=${encodeURIComponent(email)}`;
+            sendAccountLockoutEmail(email, resetLink).catch(() => {});
+          }
+        }
+
+        console.warn(`[AUTH_FAILED] IP: ${clientIp} failed login for ${maskEmail(email)} (Consecutive fails: ${rec.failedAttempts})`);
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Authentication failed. Please verify your credentials or try again later.'
+        }));
+      };
+
+      if (user) {
+        // 5. Constant-time comparison using bcrypt / timingSafeEqual
+        const isMatch = await verifyPassword(password, user.password);
+        if (!isMatch) {
+          await handleFailedAuth();
           return;
         }
 
-        const isStaff = email.endsWith('@vit.ac.in');
-        const isStudent = email.endsWith('@vitstudent.ac.in');
-        if (!isStaff && !isStudent) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Please enter an official @vitstudent.ac.in or @vit.ac.in email.' }));
-          return;
+        // Authentication succeeded: clear failed attempts
+        accountLockouts.delete(email);
+
+        // 6. Migration on next login: Auto-upgrade any unhashed/weakly hashed password to bcrypt (cost 12)
+        if (!isBcryptHash(user.password)) {
+          user.password = await hashPassword(password);
+          saveAccounts(accounts);
+          console.log(`[AUTH_MIGRATION] Re-hashed password to bcrypt (cost ${BCRYPT_SALT_ROUNDS}) for: ${maskEmail(email)}`);
         }
 
-        const isAdmin = email === 'admin@vit.ac.in' || email.startsWith('admin.');
-        const role = isAdmin ? 'admin' : (isStaff ? 'staff' : 'student');
-        const accounts = getAccounts();
-        let user = accounts.find(a => a.email.toLowerCase() === email);
-
-        if (user) {
-          if (user.password !== password) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, error: 'Incorrect password for this account.' }));
-            return;
-          }
-          let userChanged = false;
-          if (user.role === 'student' && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes('gorai2024'))) {
-            user.name = formatStudentNameFromEmail(user.email);
-            userChanged = true;
-          }
-          if (enteredRoll && (!user.regNo || user.regNo.trim().length === 0)) {
-            user.regNo = enteredRoll;
-            userChanged = true;
-          }
-          if (userChanged) {
-            saveAccounts(accounts);
-          }
-        } else {
-          // If trying to log in as staff or admin without a pre-existing secret account, reject
-          if (isStaff) {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, error: 'Staff or Administrator account not found. Access is restricted.' }));
-            return;
-          }
-
-          // Auto-register new student account seamlessly
-          const formattedName = formatStudentNameFromEmail(email);
-          user = {
-            id: `std-${Date.now()}`,
-            role: 'student',
-            name: sanitizeText(formattedName, 60),
-            email,
-            regNo: enteredRoll,
-            password,
-            avatar: '🎓'
-          };
-          accounts.push(user);
+        let userChanged = false;
+        if (user.role === 'student' && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes('gorai2024'))) {
+          user.name = formatStudentNameFromEmail(user.email);
+          userChanged = true;
+        }
+        if (enteredRoll && (!user.regNo || user.regNo.trim().length === 0)) {
+          user.regNo = enteredRoll;
+          userChanged = true;
+        }
+        if (userChanged) {
           saveAccounts(accounts);
         }
+      } else {
+        // Staff or admin accounts require pre-existing institutional provisioning
+        if (isStaff) {
+          await handleFailedAuth();
+          return;
+        }
 
-        const { password: _, ...safeUser } = user;
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, user: safeUser }));
-      } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Invalid login payload' }));
+        // Auto-register student with bcrypt hashed password
+        const hashedPassword = await hashPassword(password);
+        const formattedName = formatStudentNameFromEmail(email);
+        user = {
+          id: `std-${Date.now()}`,
+          role: 'student',
+          name: sanitizeInput(formattedName, 60),
+          email,
+          regNo: enteredRoll,
+          password: hashedPassword,
+          avatar: '🎓'
+        };
+        accounts.push(user);
+        saveAccounts(accounts);
+        accountLockouts.delete(email);
       }
+
+      const { password: _, ...safeUser } = user;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, user: safeUser }));
+    });
+    return;
+  }
+
+  // POST /api/auth/signup and /signup (Dedicated registration route)
+  if (req.method === 'POST' && (urlPath === '/api/auth/signup' || urlPath === '/signup')) {
+    const clientIp = getClientIp(req);
+    const ipCheck = checkIpRateLimit(clientIp);
+    if (!ipCheck.allowed) {
+      res.writeHead(429, {
+        'Content-Type': 'application/json',
+        'Retry-After': String(ipCheck.retryAfter)
+      });
+      res.end(JSON.stringify({
+        success: false,
+        error: 'Too many signup requests from your network. Please wait a minute before trying again.'
+      }));
+      return;
+    }
+
+    let body = '';
+    let tooLarge = false;
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 32 * 1024) {
+        tooLarge = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Payload too large' }));
+        req.destroy();
+      }
+    });
+
+    req.on('end', async () => {
+      if (tooLarge) return;
+
+      const rawPayload = parseSafeJson(body) || {};
+      const rawEmail = typeof rawPayload.email === 'string' ? rawPayload.email.trim() : '';
+      const rawPassword = typeof rawPayload.password === 'string' ? rawPayload.password.trim() : '';
+      const rawName = typeof (rawPayload.name || rawPayload.displayName || rawPayload.username) === 'string' ? (rawPayload.name || rawPayload.displayName || rawPayload.username).trim() : '';
+      const rawRoll = typeof rawPayload.regNo === 'string' ? rawPayload.regNo.trim() : '';
+
+      if (hasHtmlOrScriptTags(rawEmail) || hasHtmlOrScriptTags(rawName) || hasHtmlOrScriptTags(rawRoll)) {
+        console.warn(`[AUTH_SIGNUP_VALIDATION_FAILURE] ${new Date().toISOString()} | IP: ${clientIp} | Route: ${urlPath} | Details: HTML/script tag injection detected`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Invalid authentication request. Please verify your registration details.'
+        }));
+        return;
+      }
+
+      const cleanEmail = sanitizeAuthEmail(rawEmail);
+      const cleanName = sanitizeInput(rawName, 60);
+      const cleanRoll = sanitizeRegNo(rawRoll);
+
+      const validation = SignupSchema.safeParse({
+        email: cleanEmail,
+        password: rawPassword,
+        name: cleanName,
+        regNo: cleanRoll
+      });
+
+      if (!validation.success) {
+        console.warn(`[AUTH_SIGNUP_VALIDATION_FAILURE] ${new Date().toISOString()} | IP: ${clientIp} | Route: ${urlPath} | Details: ${JSON.stringify(validation.error.flatten().fieldErrors)}`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Invalid authentication request. Please verify your registration details.'
+        }));
+        return;
+      }
+
+      const { email, password, name, regNo } = validation.data;
+      const isStaff = email.endsWith('@vit.ac.in');
+      if (isStaff) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'Staff and Administrator accounts require direct institutional provisioning.'
+        }));
+        return;
+      }
+
+      const accounts = getAccounts();
+      const existing = accounts.find(a => a.email.toLowerCase() === email);
+      if (existing) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          error: 'An account with this email already exists. Please sign in instead.'
+        }));
+        return;
+      }
+
+      const hashedPassword = await hashPassword(password);
+      const formattedName = name || formatStudentNameFromEmail(email);
+      const newUser = {
+        id: `std-${Date.now()}`,
+        role: 'student',
+        name: formattedName,
+        email,
+        regNo,
+        password: hashedPassword,
+        avatar: '🎓'
+      };
+      accounts.push(newUser);
+      saveAccounts(accounts);
+
+      const { password: _, ...safeUser } = newUser;
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, user: safeUser }));
     });
     return;
   }
@@ -985,7 +1418,7 @@ const server = http.createServer((req, res) => {
       if (tooLarge) return;
       try {
         const payload = parseSafeJson(body) || {};
-        const email = sanitizeEmail(payload.email || '');
+        const email = sanitizeAuthEmail(payload.email || '');
         const regNo = sanitizeRegNo(payload.regNo || '');
 
         if (!email || !regNo) {
@@ -1029,27 +1462,37 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // POST /api/auth/reset-password (Update password after OTP verification)
+  // POST /api/auth/reset-password (Update password after OTP verification & clear lockouts)
   if (req.method === 'POST' && urlPath === '/api/auth/reset-password') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
-        const payload = JSON.parse(body || '{}');
-        const email = (payload.email || '').trim().toLowerCase();
-        const newPassword = (payload.newPassword || '').trim();
+        const payload = parseSafeJson(body) || {};
+        const cleanEmail = sanitizeAuthEmail(payload.email || '');
+        const rawNewPass = typeof payload.newPassword === 'string' ? payload.newPassword.trim() : '';
 
-        if (!email || !newPassword || newPassword.length < 6) {
+        const validation = ResetPasswordSchema.safeParse({
+          email: cleanEmail,
+          newPassword: rawNewPass
+        });
+
+        if (!validation.success) {
+          const clientIp = getClientIp(req);
+          console.warn(`[RESET_PASSWORD_VALIDATION_FAILURE] IP: ${clientIp} | Details: ${JSON.stringify(validation.error.flatten().fieldErrors)}`);
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Valid email and new password (min. 6 characters) are required' }));
+          res.end(JSON.stringify({ success: false, error: 'Invalid password reset request. Password must be at least 6 characters.' }));
           return;
         }
 
+        const { email, newPassword } = validation.data;
         const accounts = getAccounts();
         const user = accounts.find(a => a.email.toLowerCase() === email);
         if (user) {
-          user.password = newPassword;
+          user.password = await hashPassword(newPassword);
           saveAccounts(accounts);
+          // Unlock account if it was locked
+          accountLockouts.delete(email);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, message: 'Password updated successfully' }));
         } else {
@@ -1058,7 +1501,7 @@ const server = http.createServer((req, res) => {
         }
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: err.message }));
+        res.end(JSON.stringify({ success: false, error: 'Invalid request' }));
       }
     });
     return;
@@ -1683,6 +2126,11 @@ Instructions:
   });
 });
 
-server.listen(PORT, HOST, () => {
+server.listen(PORT, HOST, async () => {
+  try {
+    await runMigration();
+  } catch (err) {
+    console.error('[AUTH_MIGRATION_ERROR] Startup migration error:', err.message);
+  }
   console.log(`VIT AI Campus Helpdesk server running at http://${HOST}:${PORT}/ (Port: ${PORT})`);
 });

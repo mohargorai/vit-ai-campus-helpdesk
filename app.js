@@ -5115,7 +5115,7 @@ function setupAuthEventListeners() {
         if (user.role === "student" && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes("gorai2024"))) {
           user.name = formatStudentNameFromEmail(user.email);
         }
-        user.password = password;
+        delete user.password;
         const localAcc = getAccounts().find(a => a.email.toLowerCase() === email.toLowerCase());
         if (localAcc && localAcc.regNo && (!user.regNo || user.regNo.startsWith("24BCE1170"))) {
           user.regNo = localAcc.regNo;
