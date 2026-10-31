@@ -11,3 +11,4 @@ data/conversations.json
 .env
 .env.local
 mail_config.json
+.session_secret

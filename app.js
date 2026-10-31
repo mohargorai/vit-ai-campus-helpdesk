@@ -839,6 +839,18 @@ function saveAccount(acc) {
   localStorage.setItem("vit_accounts", JSON.stringify(accounts));
 }
 
+function getAuthToken() {
+  return localStorage.getItem("vit_auth_token") || "";
+}
+
+function getAuthHeaders(headers = {}) {
+  const token = getAuthToken();
+  return {
+    ...headers,
+    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+  };
+}
+
 function getCurrentUser() {
   const accounts = getAccounts();
   try {
@@ -863,6 +875,7 @@ function logoutUser() {
   state.currentUser = null;
   state.activeConversationId = null;
   localStorage.setItem("vit_current_user", "logged_out");
+  localStorage.removeItem("vit_auth_token");
   const authEmailInput = document.getElementById("auth-email-input");
   const authPasswordInput = document.getElementById("auth-password-input");
   const authRegNoInput = document.getElementById("auth-regno-input");
@@ -891,12 +904,16 @@ function setCurrentUser(user) {
   state.currentUser = user;
   state.activeConversationId = null;
   if (user) {
+    if (user.token) {
+      localStorage.setItem("vit_auth_token", user.token);
+    }
     localStorage.setItem("vit_current_user", JSON.stringify(user));
     if (user.role === "student") {
       localStorage.setItem("vit_last_student_user", JSON.stringify(user));
     }
   } else {
     localStorage.setItem("vit_current_user", "logged_out");
+    localStorage.removeItem("vit_auth_token");
   }
   updateUserProfileUI();
   updateTicketBadges();
@@ -935,13 +952,13 @@ function saveTickets(tickets) {
 async function syncTicketsFromServer() {
   try {
     const user = state.currentUser;
-    const params = new URLSearchParams();
-    if (user) {
-      params.set("role", user.role || "student");
-      if (user.email) params.set("email", user.email);
-      if (user.regNo) params.set("regNo", user.regNo);
-    }
-    const res = await fetch(`/api/tickets?${params.toString()}`);
+    if (!user) return;
+    const token = getAuthToken();
+    if (!token) return;
+
+    const res = await fetch('/api/tickets', {
+      headers: getAuthHeaders()
+    });
     if (res.ok) {
       const serverTickets = await res.json();
       if (Array.isArray(serverTickets)) {
@@ -1090,14 +1107,15 @@ let syncConvsDebounceTimer = null;
 function syncConversationsToServer(list) {
   const user = state.currentUser;
   if (!user || !user.email) return;
-  const email = user.email.trim().toLowerCase();
+  const token = getAuthToken();
+  if (!token) return;
 
   clearTimeout(syncConvsDebounceTimer);
   syncConvsDebounceTimer = setTimeout(() => {
     fetch('/api/conversations', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, conversations: list })
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ conversations: list })
     }).catch(err => console.warn("Backend conversation sync offline:", err));
   }, 400);
 }
@@ -1105,10 +1123,13 @@ function syncConversationsToServer(list) {
 async function syncConversationsFromServer() {
   const user = state.currentUser;
   if (!user || !user.email) return;
-  const email = user.email.trim().toLowerCase();
+  const token = getAuthToken();
+  if (!token) return;
 
   try {
-    const res = await fetch(`/api/conversations?email=${encodeURIComponent(email)}`);
+    const res = await fetch(`/api/conversations?email=${encodeURIComponent(user.email)}`, {
+      headers: getAuthHeaders()
+    });
     if (res.ok) {
       const serverConvs = await res.json();
       if (Array.isArray(serverConvs)) {
@@ -2505,7 +2526,7 @@ function appendAssistantResponse(queryResult, studentQuery, elapsedSeconds = nul
       // Persist to server backend storage & sync ID across campus
       fetch('/api/tickets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(newTicket)
       })
         .then(res => res.json())
@@ -4142,7 +4163,7 @@ function setupEventListeners() {
 
       fetch('/api/tickets/clear', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ role: state.currentUser?.role || 'staff' })
       }).catch(err => console.warn("Backend clear tickets sync offline:", err));
 
@@ -4339,7 +4360,7 @@ function setupEventListeners() {
         // Sync staff reply to backend storage
         fetch('/api/tickets/reply', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             id: ticket.id,
             reply: replyVal,
@@ -5112,6 +5133,10 @@ function setupAuthEventListeners() {
         }
 
         user = data.user;
+        if (data.token) {
+          user.token = data.token;
+          localStorage.setItem("vit_auth_token", data.token);
+        }
         if (user.role === "student" && user.email && (!user.name || /\d{2,4}$/.test(user.name.trim()) || user.name.includes("gorai2024"))) {
           user.name = formatStudentNameFromEmail(user.email);
         }
@@ -5226,7 +5251,7 @@ function setupAuthEventListeners() {
         // Sync roll to backend storage
         fetch('/api/auth/update-roll', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ email: state.currentUser.email, regNo: clean })
         }).catch(err => console.warn("Backend roll sync offline:", err));
 

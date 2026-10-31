@@ -157,6 +157,67 @@ async function verifyPassword(plainText, storedHashOrPlain) {
   return crypto.timingSafeEqual(plainBuf, storedBuf);
 }
 
+// ============================================================================
+// CRYPTOGRAPHIC SESSION MANAGEMENT (Zero Dependencies, HMAC-SHA256)
+// ============================================================================
+const SESSION_SECRET_FILE = path.join(__dirname, '.session_secret');
+let SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  if (fs.existsSync(SESSION_SECRET_FILE)) {
+    try {
+      SESSION_SECRET = fs.readFileSync(SESSION_SECRET_FILE, 'utf8').trim();
+    } catch (_) {}
+  }
+  if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
+    SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+    try {
+      fs.writeFileSync(SESSION_SECRET_FILE, SESSION_SECRET, { mode: 0o600 });
+    } catch (_) {}
+  }
+}
+
+function createSessionToken(user) {
+  const payload = {
+    email: user.email.toLowerCase(),
+    role: user.role,
+    name: user.name || '',
+    regNo: user.regNo || '',
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days expiration
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', SESSION_SECRET).update(payloadB64).digest('base64url');
+  return `${payloadB64}.${signature}`;
+}
+
+function verifySessionToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [payloadB64, signature] = parts;
+  const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payloadB64).digest('base64url');
+
+  const sigBuf = Buffer.from(signature);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    if (!payload.exp || Date.now() > payload.exp) return null;
+    return payload;
+  } catch (_) {
+    return null;
+  }
+}
+
+function getAuthenticatedUser(req) {
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return verifySessionToken(authHeader.slice(7).trim());
+  }
+  return null;
+}
+
 // In-Memory Rate Limiting & Account Lockout Store
 const ipRateLimits = new Map();
 const accountLockouts = new Map();
@@ -194,20 +255,24 @@ function getClientIp(req) {
   return req.socket?.remoteAddress || '127.0.0.1';
 }
 
-function checkIpRateLimit(clientIp) {
+function checkRateLimit(key, maxLimit = 10, windowMs = 60 * 1000) {
   const now = Date.now();
-  let record = ipRateLimits.get(clientIp);
-  if (!record || now - record.windowStart > IP_RATE_LIMIT_WINDOW_MS) {
+  let record = ipRateLimits.get(key);
+  if (!record || now - record.windowStart > windowMs) {
     record = { count: 1, windowStart: now };
-    ipRateLimits.set(clientIp, record);
-    return { allowed: true, remaining: IP_RATE_LIMIT_MAX - 1 };
+    ipRateLimits.set(key, record);
+    return { allowed: true, remaining: maxLimit - 1 };
   }
   record.count++;
-  if (record.count > IP_RATE_LIMIT_MAX) {
-    const retryAfter = Math.ceil((record.windowStart + IP_RATE_LIMIT_WINDOW_MS - now) / 1000);
+  if (record.count > maxLimit) {
+    const retryAfter = Math.ceil((record.windowStart + windowMs - now) / 1000);
     return { allowed: false, retryAfter: Math.max(1, retryAfter) };
   }
-  return { allowed: true, remaining: IP_RATE_LIMIT_MAX - record.count };
+  return { allowed: true, remaining: maxLimit - record.count };
+}
+
+function checkIpRateLimit(clientIp) {
+  return checkRateLimit(`login:${clientIp}`, IP_RATE_LIMIT_MAX, IP_RATE_LIMIT_WINDOW_MS);
 }
 
 async function sendAccountLockoutEmail(toEmail, resetLink) {
@@ -693,8 +758,20 @@ function parseSafeJson(body, maxBytes = 256 * 1024) {
 }
 
 const server = http.createServer((req, res) => {
-  // Global Security & CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Dynamic CORS & Security Headers
+  const origin = req.headers['origin'];
+  const host = req.headers['host'] || '';
+  const isAllowedOrigin = !origin ||
+    origin === `http://${host}` ||
+    origin === `https://${host}` ||
+    origin.startsWith('http://localhost:') ||
+    origin.startsWith('http://127.0.0.1:') ||
+    origin === 'https://vit-ai-campus-helpdesk.onrender.com';
+
+  if (origin && isAllowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -714,25 +791,31 @@ const server = http.createServer((req, res) => {
 
   // GET /api/tickets (Filtered for students; full for staff/admin)
   if (req.method === 'GET' && urlPath === '/api/tickets') {
-    const role = (parsedUrl.searchParams.get('role') || '').toLowerCase();
-    const email = (parsedUrl.searchParams.get('email') || '').toLowerCase();
-    const regNo = (parsedUrl.searchParams.get('regNo') || '').toUpperCase();
+    const auth = getAuthenticatedUser(req);
+    if (!auth) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Authentication required to view tickets' }));
+      return;
+    }
 
     const tickets = getTickets();
 
-    if (role === 'student' && (email || regNo)) {
-      const studentTickets = tickets.filter(t => {
-        const emailMatch = email && t.studentEmail && t.studentEmail.toLowerCase() === email;
-        const regMatch = regNo && t.studentRegNo && t.studentRegNo.toUpperCase() === regNo;
-        return emailMatch || regMatch;
-      });
+    if (auth.role === 'student') {
+      const authEmail = auth.email.toLowerCase();
+      const studentTickets = tickets.filter(t => t.studentEmail && t.studentEmail.toLowerCase() === authEmail);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
       res.end(JSON.stringify(studentTickets));
       return;
     }
 
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-    res.end(JSON.stringify(tickets));
+    if (auth.role === 'staff' || auth.role === 'admin') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify(tickets));
+      return;
+    }
+
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Forbidden' }));
     return;
   }
 
@@ -754,6 +837,7 @@ const server = http.createServer((req, res) => {
       try {
         const payload = parseSafeJson(body) || {};
         const tickets = getTickets();
+        const auth = getAuthenticatedUser(req);
 
         let maxSeq = 9140;
         tickets.forEach(t => {
@@ -769,6 +853,10 @@ const server = http.createServer((req, res) => {
         const timestamp = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' +
           now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
+        const studentEmail = auth ? auth.email : sanitizeEmail(payload.studentEmail || '');
+        const studentName = auth ? (auth.name || 'VITian Student') : sanitizeText(payload.studentName || 'VITian Student', 60);
+        const studentRegNo = auth ? (auth.regNo || sanitizeRegNo(payload.studentRegNo || '')) : sanitizeRegNo(payload.studentRegNo || '');
+
         const newTicket = {
           id: nextId,
           query: sanitizeText(payload.query || 'Inquiry routed to human support desk', 1000),
@@ -777,9 +865,9 @@ const server = http.createServer((req, res) => {
           timestamp: sanitizeText(payload.timestamp || timestamp, 50),
           status: 'Pending Support Review',
           resolved: false,
-          studentName: sanitizeText(payload.studentName || 'VITian Student', 60),
-          studentEmail: sanitizeEmail(payload.studentEmail || ''),
-          studentRegNo: sanitizeRegNo(payload.studentRegNo || '')
+          studentName,
+          studentEmail,
+          studentRegNo
         };
 
         tickets.unshift(newTicket);
@@ -797,6 +885,13 @@ const server = http.createServer((req, res) => {
 
   // POST /api/tickets/reply (Official staff reply from Desk MB-102)
   if (req.method === 'POST' && urlPath === '/api/tickets/reply') {
+    const auth = getAuthenticatedUser(req);
+    if (!auth || (auth.role !== 'staff' && auth.role !== 'admin')) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Access restricted: Staff or Administrator credentials required' }));
+      return;
+    }
+
     let body = '';
     let tooLarge = false;
     req.on('data', chunk => {
@@ -838,9 +933,9 @@ const server = http.createServer((req, res) => {
 
         ticket.resolved = true;
         ticket.reply = reply;
-        ticket.resolvedBy = staffName || 'Dr. K. Ramanathan';
-        ticket.resolvedByEmail = staffEmail || 'ramanathan.k@vit.ac.in';
-        ticket.resolvedByRole = staffRole || 'Student Welfare Officer (Desk MB-102)';
+        ticket.resolvedBy = auth.name || staffName || 'Dr. K. Ramanathan';
+        ticket.resolvedByEmail = auth.email || staffEmail || 'ramanathan.k@vit.ac.in';
+        ticket.resolvedByRole = auth.role === 'admin' ? 'System Administrator' : (staffRole || 'Student Welfare Officer (Desk MB-102)');
         ticket.resolvedAt = timestamp;
         ticket.status = 'Resolved & Replied by Staff (MB-102)';
 
@@ -858,18 +953,17 @@ const server = http.createServer((req, res) => {
 
   // POST /api/tickets/clear (Staff clears resolved ticket queue)
   if (req.method === 'POST' && urlPath === '/api/tickets/clear') {
+    const auth = getAuthenticatedUser(req);
+    if (!auth || (auth.role !== 'staff' && auth.role !== 'admin')) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Access restricted: Staff or Administrator credentials required' }));
+      return;
+    }
+
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       try {
-        const payload = JSON.parse(body || '{}');
-        const role = (payload.role || '').toLowerCase();
-        if (role !== 'staff' && role !== 'admin') {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Only staff can clear resolved tickets' }));
-          return;
-        }
-
         let tickets = getTickets();
         tickets = tickets.filter(t => !t.resolved && !t.reply);
         saveTickets(tickets);
@@ -1004,14 +1098,21 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // GET /api/conversations?email=... (Retrieve user's cloud-persisted chat threads across browsers)
+  // GET /api/conversations?email=... (Authenticated: students can only access their own chats)
   if (req.method === 'GET' && urlPath === '/api/conversations') {
-    const email = sanitizeEmail(parsedUrl.searchParams.get('email') || '');
-    if (!email) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Email parameter required' }));
+    const auth = getAuthenticatedUser(req);
+    if (!auth) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
       return;
     }
+    const requestedEmail = sanitizeAuthEmail(parsedUrl.searchParams.get('email') || '');
+    if (auth.role !== 'admin' && requestedEmail && requestedEmail.toLowerCase() !== auth.email.toLowerCase()) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Access forbidden: You cannot view conversations of other accounts.' }));
+      return;
+    }
+    const email = (auth.role === 'admin' && requestedEmail) ? requestedEmail.toLowerCase() : auth.email.toLowerCase();
     const all = getAllConversations();
     const userConvs = Array.isArray(all[email]) ? all[email] : [];
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
@@ -1021,6 +1122,12 @@ const server = http.createServer((req, res) => {
 
   // POST /api/conversations (Sync & persist user's chat conversations)
   if (req.method === 'POST' && urlPath === '/api/conversations') {
+    const auth = getAuthenticatedUser(req);
+    if (!auth) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+      return;
+    }
     let body = '';
     let tooLarge = false;
     req.on('data', chunk => {
@@ -1036,12 +1143,12 @@ const server = http.createServer((req, res) => {
       if (tooLarge) return;
       try {
         const payload = parseSafeJson(body) || {};
-        const email = sanitizeEmail(payload.email || '');
-        if (!email || !Array.isArray(payload.conversations)) {
+        if (!Array.isArray(payload.conversations)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Valid email and conversations array required' }));
+          res.end(JSON.stringify({ success: false, error: 'Valid conversations array required' }));
           return;
         }
+        const email = auth.email.toLowerCase();
         const all = getAllConversations();
         all[email] = payload.conversations.slice(0, 50); // Keep up to 50 active chats per account
         saveAllConversations(all);
@@ -1055,8 +1162,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // GET /api/accounts (Public student directory - hides secret staff and admin accounts)
+  // GET /api/accounts (Admin only)
   if (req.method === 'GET' && urlPath === '/api/accounts') {
+    const auth = getAuthenticatedUser(req);
+    if (!auth || auth.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Access restricted to administrators' }));
+      return;
+    }
     const publicAccounts = getAccounts()
       .filter(a => a.role === 'student')
       .map(({ password, ...rest }) => rest);
@@ -1283,9 +1396,10 @@ const server = http.createServer((req, res) => {
         accountLockouts.delete(email);
       }
 
+      const token = createSessionToken(user);
       const { password: _, ...safeUser } = user;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, user: safeUser }));
+      res.end(JSON.stringify({ success: true, user: safeUser, token }));
     });
     return;
   }
@@ -1394,15 +1508,23 @@ const server = http.createServer((req, res) => {
       accounts.push(newUser);
       saveAccounts(accounts);
 
+      const token = createSessionToken(newUser);
       const { password: _, ...safeUser } = newUser;
       res.writeHead(201, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, user: safeUser }));
+      res.end(JSON.stringify({ success: true, user: safeUser, token }));
     });
     return;
   }
 
   // POST /api/auth/update-roll (Update Roll Number and sync student tickets)
   if (req.method === 'POST' && urlPath === '/api/auth/update-roll') {
+    const auth = getAuthenticatedUser(req);
+    if (!auth) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+      return;
+    }
+
     let body = '';
     let tooLarge = false;
     req.on('data', chunk => {
@@ -1418,7 +1540,8 @@ const server = http.createServer((req, res) => {
       if (tooLarge) return;
       try {
         const payload = parseSafeJson(body) || {};
-        const email = sanitizeAuthEmail(payload.email || '');
+        const requestedEmail = sanitizeAuthEmail(payload.email || '');
+        const email = auth.role === 'admin' && requestedEmail ? requestedEmail : auth.email;
         const regNo = sanitizeRegNo(payload.regNo || '');
 
         if (!email || !regNo) {
@@ -1430,7 +1553,7 @@ const server = http.createServer((req, res) => {
         const accounts = getAccounts();
         const user = accounts.find(a => a.email.toLowerCase() === email);
         if (user) {
-          if (user.regNo && user.regNo.trim().length > 0) {
+          if (user.regNo && user.regNo.trim().length > 0 && auth.role !== 'admin') {
             res.writeHead(403, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: false, error: 'Registration number is already registered to this student account and cannot be modified.' }));
             return;
@@ -1509,6 +1632,12 @@ const server = http.createServer((req, res) => {
 
   // GET /api/mail-config
   if (req.method === 'GET' && urlPath === '/api/mail-config') {
+    const auth = getAuthenticatedUser(req);
+    if (!auth || auth.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Administrator credentials required' }));
+      return;
+    }
     const cfg = getMailConfig();
     const maskedPass = cfg.smtpPass ? '••••••••••••' + cfg.smtpPass.slice(-4) : '';
     const maskedKey = cfg.resendApiKey ? 're_••••••••' + cfg.resendApiKey.slice(-4) : '';
@@ -1530,6 +1659,12 @@ const server = http.createServer((req, res) => {
 
   // POST /api/save-mail-config
   if (req.method === 'POST' && urlPath === '/api/save-mail-config') {
+    const auth = getAuthenticatedUser(req);
+    if (!auth || auth.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Administrator credentials required' }));
+      return;
+    }
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
@@ -1628,11 +1763,19 @@ const server = http.createServer((req, res) => {
 
   // POST /api/send-reset-email
   if (req.method === 'POST' && urlPath === '/api/send-reset-email') {
+    const clientIp = getClientIp(req);
+    const ipCheck = checkRateLimit(`reset:${clientIp}`, 5, 60 * 1000);
+    if (!ipCheck.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(ipCheck.retryAfter) });
+      res.end(JSON.stringify({ success: false, error: 'Too many password reset requests from your network. Please wait a minute.' }));
+      return;
+    }
+
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
       try {
-        const payload = JSON.parse(body || '{}');
+        const payload = parseSafeJson(body) || {};
         const { to, securityCode, studentName } = payload;
 
         if (!to || !securityCode) {
@@ -1723,6 +1866,14 @@ const server = http.createServer((req, res) => {
 
   // Generative AI RAG Proxy Endpoint
   if (req.method === 'POST' && urlPath === '/api/generate') {
+    const clientIp = getClientIp(req);
+    const ipCheck = checkRateLimit(`gen:${clientIp}`, 30, 60 * 1000);
+    if (!ipCheck.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(ipCheck.retryAfter) });
+      res.end(JSON.stringify({ text: 'Rate limit reached: Please slow down your AI questions to avoid overloading the service.', provider: 'Helpdesk' }));
+      return;
+    }
+
     let body = '';
     let tooLarge = false;
     req.on('data', chunk => {
